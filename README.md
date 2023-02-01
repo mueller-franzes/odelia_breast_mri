@@ -6,6 +6,8 @@ Code base for breast MRI classification
 
 ## Step 0: Setup 
 * Clone this repository 
+* Make sure that your graphics card driver supports the current CUDA version 11.7. You can check this by running `nvidia-smi`. 
+If not, change `pytorch-cuda=11.7` in the [environment.yaml](environment.yaml) file or update your driver.
 * Run: `conda env create -f environment.yaml` (can take up to 30min)
 * Run `conda activate odelia`
 * Run `pip install -e .`
