@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=True, 
-        path_root = '/mnt/hdd/datasets/breast/DUKE/dataset_256x256x32_lr_2'
+        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/odelia_dataset_unilateral_256x256x32/'
     )
 
     # WARNING: Very simple split approach

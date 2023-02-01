@@ -20,7 +20,7 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 if __name__ == "__main__":
 
     #------------ Settings/Defaults ----------------
-    path_run = Path.cwd() / 'runs/2023_01_29_220203'
+    path_run = Path.cwd() / 'runs/2023_01_30_223957'
     path_out = Path().cwd()/'results'/path_run.name
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=True, 
-        path_root = '/mnt/hdd/datasets/breast/DUKE/dataset_256x256x32_lr_2'
+        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/odelia_dataset_unilateral_256x256x32/'
     )
 
     # WARNING: Very simple split approach
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     model.to(device)
     model.eval()
 
-    results = {'GT':[], 'NN':[]}
+    results = {'GT':[], 'NN':[], 'NN_pred':[]}
     for batch in tqdm(dm.test_dataloader()):
         source, target = batch['source'], batch['target']
 

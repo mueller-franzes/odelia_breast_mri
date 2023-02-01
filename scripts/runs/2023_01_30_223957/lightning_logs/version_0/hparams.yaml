@@ -1,0 +1,21 @@
+block: basic
+block_inplanes:
+- 64
+- 128
+- 256
+- 512
+feed_forward: true
+in_ch: 2
+layers:
+- 3
+- 4
+- 6
+- 3
+loss: !!python/name:torch.nn.modules.loss.CrossEntropyLoss ''
+loss_kwargs: {}
+lr_scheduler: null
+lr_scheduler_kwargs: {}
+optimizer: !!python/name:torch.optim.adamw.AdamW ''
+optimizer_kwargs: {}
+out_ch: 2
+spatial_dims: 3

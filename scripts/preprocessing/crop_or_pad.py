@@ -55,12 +55,12 @@ def preprocess(path_dir):
             img_side.save(path_out_dir/path_img.name)
 
 if __name__ == "__main__":
-    path_data = Path('/mnt/hdd/datasets/breast/DUKE/dataset')
-    path_out = Path('/mnt/hdd/datasets/breast/DUKE/dataset_unilateral_256x256x32')
+    path_data = Path('/mnt/sda1/swarm-learning/radiology-dataset/odelia_converted/')
+    path_out = Path('/mnt/sda1/swarm-learning/radiology-dataset/odelia_dataset_unilateral_256x256x32/')
     path_out.mkdir(parents=True, exist_ok=True)
     pool = Pool()
     pool.map(preprocess, path_data.iterdir())
     # for path_dir in path_data.iterdir():
     #     preprocess(path_dir)
-        
+
     

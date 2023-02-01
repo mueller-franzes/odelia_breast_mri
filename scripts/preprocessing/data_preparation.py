@@ -13,10 +13,10 @@ import pandas as pd
 
 
 # Setting 
-path_root = Path('/mnt/hdd/datasets/breast/DUKE/')
+path_root = Path('/mnt/sda1/swarm-learning/radiology-dataset/original-dataset/manifest-1654812109500/Duke-Breast-Cancer-MRI/')
 
-path_root_in = path_root/'dataset_raw'
-path_root_out = path_root/'dataset'
+path_root_in = path_root
+path_root_out = Path('/mnt/sda1/swarm-learning/radiology-dataset/odelia_converted/')
 path_root_out.mkdir(parents=True, exist_ok=True)
 
 
@@ -46,7 +46,7 @@ metadatakeys = [
 
 
 # Get sequence names (warning: time intensive)
-df_path2name = pd.read_excel(path_root/'Breast-Cancer-MRI-filepath_filename-mapping.xlsx')
+df_path2name = pd.read_excel(Path('/mnt/sda1/swarm-learning/radiology-dataset/original-dataset/Breast-Cancer-MRI-filepath_filename-mapping.xlsx'))
 seq_paths = df_path2name['original_path_and_filename'].str.split('/')
 df_path2name['UID'] = seq_paths.apply(lambda x:int(x[1].rsplit('_', 1)[1]))
 df_path2name['SequenceName'] = seq_paths.apply(lambda x:x[2])
@@ -61,44 +61,55 @@ for case_i, path_dir in enumerate(tqdm(list(path_root_in.iterdir()))):
     if not path_dir.is_dir():
         continue
 
-    case_id = path_dir.name.rsplit('_', 1)[1]  
+    case_id = path_dir.name.rsplit('_', 1)[1]
     logger.debug(f"Case ID: {case_id}, Number {case_i}")
-    
-    # Every case should have exactly one folder with several subfolder 
+
+    # Every case should have exactly one folder with several subfolder
     sub_dirs = [ sub_dir for sub_dir in path_dir.iterdir() if sub_dir.is_dir()]
     if len(sub_dirs) != 1:
         raise "Expecting exactly one subdirectory per case !"
     path_dir_series = sub_dirs[0]
 
-    # Create output folder 
+    # Create output folder
     path_out_dir = path_root_out/case_id
     path_out_dir.mkdir(exist_ok=True)
 
     # Iterate over all sequences (post_1, post_2, ..., pre, T1)
     df_sequences = df_path2name[df_path2name['UID'] == int(case_id)]
     for path_seq_dir in path_dir_series.iterdir():
-        # Get one DICOM file  
-        path_dicom_file_1 = path_seq_dir/'1-001.dcm' 
+        # Get one DICOM file
+        path_dicom_file_1 = path_seq_dir/'1-001.dcm'
         if not path_dicom_file_1.is_file():
-            path_dicom_file_1 = path_seq_dir/'1-01.dcm'   
+            path_dicom_file_1 = path_seq_dir/'1-01.dcm'
+        if not path_dicom_file_1.is_file():
+            path_dicom_file_1 = path_seq_dir/'1-1.dcm'
+            '''
+        else:
+            logger.debug(f"Found {path_dicom_file_1}")
+            continue
+            #if not path_dicom_file_1.is_file():
+                #path_dicom_file_1 = path_seq_dir / '1-1.dcm'
+            '''
 
-        # Get Meta-Data (DICOM Tags)
+        logger.debug(f"Read {path_dicom_file_1}")
+                # Get Meta-Data (DICOM Tags)
         ds = pydicom.dcmread(path_dicom_file_1)
         metadata = {key:str(getattr(ds, key, 'NaN'))  for key in metadatakeys}
 
-        # Get Sequence Name 
+        # Get Sequence Name
         matches = df_sequences[df_sequences['SeriesInstanceUID'] == metadata['SeriesInstanceUID']]
         if len(matches) != 1:
-            raise "There should be exactly one matching sequence!"
+            logger.debug("No matching sequence found - Continue")
+            continue
         seq_name = matches.iloc[0]['SequenceName']
         logger.debug(f"Write {seq_name} to disk")
 
         # -------------- Read+Write Image ---------------
         dicom_names = reader.GetGDCMSeriesFileNames(str(path_seq_dir))
-        reader.SetFileNames(dicom_names) 
+        reader.SetFileNames(dicom_names)
         img_nii = reader.Execute()
         sitk.WriteImage(img_nii, str(path_out_dir/(seq_name+'.nii.gz')) )
-        
+
 
         # --------------- Write Meta-Data (DIOCM Tags) -----------
         # Add number of slices and voxels size
@@ -107,10 +118,10 @@ for case_i, path_dir in enumerate(tqdm(list(path_root_in.iterdir()))):
 
         path_out_file = path_out_dir/(seq_name+'.json')
         with open(path_out_file, 'w') as f:
-            json.dump(metadata, f) 
+            json.dump(metadata, f)
 
 
-  
+
 
     # Compute subtraction image
     logger.debug(f"Compute and write sub to disk")
@@ -119,7 +130,7 @@ for case_i, path_dir in enumerate(tqdm(list(path_root_in.iterdir()))):
     dyn0 = sitk.GetArrayFromImage(dyn0_nii)
     dyn1 = sitk.GetArrayFromImage(dyn1_nii)
     sub = dyn1-dyn0
-    sub = sub-sub.min() # Note: negative values causes overflow when using uint 
+    sub = sub-sub.min() # Note: negative values causes overflow when using uint
     sub = sub.astype(np.uint16)
     sub_nii = sitk.GetImageFromArray(sub)
     sub_nii.CopyInformation(dyn0_nii)
@@ -132,3 +143,4 @@ for case_i, path_dir in enumerate(tqdm(list(path_root_in.iterdir()))):
     t1_resampled_nii = sitk.Resample(t1_nii, dyn0_nii, sitk.Transform(), sitk.sitkBSpline, 0, dyn0_nii.GetPixelID()) # Interpolation: sitk.sitkBSpline, sitk.sitkLinear
     sitk.WriteImage(t1_resampled_nii, str(path_dir/'T1_resampled.nii.gz'))
 
+    #/mnt/sda1/swarm-learning/radiology-dataset/original-dataset/manifest-1654812109500/Duke-Breast-Cancer-MRI/Breast_MRI_318/01-01-1990-NA-MRI BREAST BILATERAL WWO-67001/300.000000-Segmentation-94441
