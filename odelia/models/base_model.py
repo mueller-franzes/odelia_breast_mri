@@ -1,4 +1,4 @@
-
+from typing import List, Union
 from pathlib import Path
 import json
 import torch 
@@ -6,7 +6,8 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
-
+from pytorch_lightning.utilities.types import EPOCH_OUTPUT
+from torchmetrics import AUROC, Accuracy
 
 
 class VeryBasicModel(pl.LightningModule):
@@ -23,6 +24,9 @@ class VeryBasicModel(pl.LightningModule):
 
     def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
         raise NotImplementedError
+    
+    def _epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]], state:str):
+        return 
 
     def training_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0 ):
         self._step_train += 1 
@@ -35,6 +39,19 @@ class VeryBasicModel(pl.LightningModule):
     def test_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
         self._step_test += 1
         return self._step(batch, batch_idx, "test", self._step_test, optimizer_idx)
+
+    def train_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
+        self._epoch_end(outputs, "train")
+        return super().training_epoch_end(outputs)
+
+    def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
+        self._epoch_end(outputs, "val")
+        return super().validation_epoch_end(outputs)
+
+    def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
+        self._epoch_end(outputs, "test")
+        return super().test_epoch_end(outputs)
+
 
 
     @classmethod
@@ -112,6 +129,8 @@ class BasicClassifier(BasicModel):
         optimizer_kwargs={'lr':1e-3, 'weight_decay':1e-2},
         lr_scheduler= None, 
         lr_scheduler_kwargs={},
+        aucroc_kwargs={"task":"binary"},
+        acc_kwargs={"task":"binary"}
     ):
         super().__init__(optimizer, optimizer_kwargs, lr_scheduler, lr_scheduler_kwargs)
         self.in_ch = in_ch 
@@ -120,9 +139,13 @@ class BasicClassifier(BasicModel):
         self.loss = loss(**loss_kwargs)
         self.loss_kwargs = loss_kwargs 
 
+        self.auc_roc = AUROC(**aucroc_kwargs)
+        self.acc = Accuracy(**acc_kwargs)
+
     
     def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
         source, target = batch['source'], batch['target']
+        target = target[:,None].float()
         batch_size = source.shape[0]
 
         # Run Model 
@@ -134,11 +157,20 @@ class BasicClassifier(BasicModel):
 
         # --------------------- Compute Metrics  -------------------------------
         with torch.no_grad():
-            logging_dict['ce'] = F.cross_entropy(pred, target.long())
-
+            # Aggregate here to compute for entire set later 
+            self.acc.update(pred, target)
+            self.auc_roc.update(pred, target) 
+            
             # ----------------- Log Scalars ----------------------
             for metric_name, metric_val in logging_dict.items():
                 self.log(f"{state}/{metric_name}", metric_val.cpu() if hasattr(metric_val, 'cpu') else metric_val, 
                          batch_size=batch_size, on_step=True, on_epoch=True) 
 
         return logging_dict['loss'] 
+
+    def _epoch_end(self, outputs, state):
+        batch_size = len(outputs)
+        for name, val in [("ACC", self.acc), ("AUC_ROC", self.auc_roc)]:
+            self.log(f"{state}/{name}", val.compute().cpu(), batch_size=batch_size, on_step=False, on_epoch=True)
+            val.reset()
+
