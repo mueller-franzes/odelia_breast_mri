@@ -61,13 +61,13 @@ class SimpleDataset3D(data.Dataset):
             return tio.Lambda(lambda x: x)
         elif isinstance(norm, str):
             if norm == 'min-max':
-                return RescaleIntensity((-1,1), per_channel=True)
+                return RescaleIntensity((-1,1), per_channel=True, masking_method=lambda x:x>0)
             elif norm == 'min-max_clip':
-                return RescaleIntensity((-1,1), per_channel=True, percentiles=(0.5, 99.5))
+                return RescaleIntensity((-1,1), per_channel=True, percentiles=(0.5, 99.5), masking_method=lambda x:x>0)
             elif norm == 'znorm':
-                return ZNormalization(per_channel=True)
+                return ZNormalization(per_channel=True, masking_method=lambda x:x>0)
             elif norm == 'znorm_clip':
-                return ZNormalization(per_channel=True, percentiles=(0.5, 99.5))
+                return ZNormalization(per_channel=True, percentiles=(0.5, 99.5), masking_method=lambda x:x>0)
             else:
                 raise "Unkown normalization"
         else:
