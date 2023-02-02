@@ -61,12 +61,12 @@ if __name__ == "__main__":
 
         # Run Model 
         pred = model(source.to(device)).cpu()
-        pred = F.softmax(pred, dim=1)
+        pred = torch.sigmoid(pred)
         pred_binary = torch.argmax(pred, dim=1)
 
         results['GT'].extend(target.tolist())
         results['NN'].extend(pred_binary.tolist())
-        results['NN_pred'].extend(pred[:, 1].tolist())
+        results['NN_pred'].extend(pred[:, 0].tolist())
 
     df = pd.DataFrame(results)
     df.to_csv(path_out/'results.csv')
