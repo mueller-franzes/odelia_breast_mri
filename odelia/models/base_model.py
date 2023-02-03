@@ -2,6 +2,7 @@ from typing import List, Union
 from pathlib import Path
 import json
 import torch 
+import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.cloud_io import load as pl_load
@@ -40,7 +41,7 @@ class VeryBasicModel(pl.LightningModule):
         self._step_test += 1
         return self._step(batch, batch_idx, "test", self._step_test, optimizer_idx)
 
-    def train_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
+    def training_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         self._epoch_end(outputs, "train")
         return super().training_epoch_end(outputs)
 
@@ -139,8 +140,8 @@ class BasicClassifier(BasicModel):
         self.loss = loss(**loss_kwargs)
         self.loss_kwargs = loss_kwargs 
 
-        self.auc_roc = AUROC(**aucroc_kwargs)
-        self.acc = Accuracy(**acc_kwargs)
+        self.auc_roc = nn.ModuleDict({state:AUROC(**aucroc_kwargs) for state in ["train_", "val_", "test_"]}) # 'train' not allowed as key
+        self.acc = nn.ModuleDict({state:Accuracy(**acc_kwargs) for state in ["train_", "val_", "test_"]})
 
     
     def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
@@ -158,8 +159,8 @@ class BasicClassifier(BasicModel):
         # --------------------- Compute Metrics  -------------------------------
         with torch.no_grad():
             # Aggregate here to compute for entire set later 
-            self.acc.update(pred, target)
-            self.auc_roc.update(pred, target) 
+            self.acc[state+"_"].update(pred, target)
+            self.auc_roc[state+"_"].update(pred, target) 
             
             # ----------------- Log Scalars ----------------------
             for metric_name, metric_val in logging_dict.items():
@@ -170,7 +171,7 @@ class BasicClassifier(BasicModel):
 
     def _epoch_end(self, outputs, state):
         batch_size = len(outputs)
-        for name, val in [("ACC", self.acc), ("AUC_ROC", self.auc_roc)]:
-            self.log(f"{state}/{name}", val.compute().cpu(), batch_size=batch_size, on_step=False, on_epoch=True)
-            val.reset()
+        for name, value in [("ACC", self.acc[state+"_"]), ("AUC_ROC", self.auc_roc[state+"_"])]:
+            self.log(f"{state}/{name}", value.compute().cpu(), batch_size=batch_size, on_step=False, on_epoch=True)
+            value.reset()
 
