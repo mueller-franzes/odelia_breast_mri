@@ -16,7 +16,7 @@ class SimpleDataset3D(data.Dataset):
         image_resize = None,
         flip = False,
         image_crop = None,
-        norm='min-max_clip', 
+        norm='znorm_clip', 
         to_tensor = True,
     ):
         super().__init__()
