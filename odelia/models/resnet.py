@@ -16,7 +16,7 @@ class ResNet(BasicClassifier):
         loss=torch.nn.BCEWithLogitsLoss, 
         loss_kwargs={}, 
         optimizer=torch.optim.AdamW, 
-        optimizer_kwargs={}, 
+        optimizer_kwargs={'lr':1e-4}, 
         lr_scheduler=None, 
         lr_scheduler_kwargs={},
         aucroc_kwargs={"task":"binary"},
