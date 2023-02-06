@@ -16,11 +16,11 @@ class DUKE_Dataset3D(SimpleDataset3D):
                 'PatientID': df["PatientID"].str.split('_').str[2] + f"_{side}",
                 'Malign':df["Location"].apply(lambda x: 1 if x == side[0].upper() else 0)} ))
         self.df = pd.concat(dfs,  ignore_index=True).set_index('PatientID', drop=True)
-        self.item_pointers = list(set(self.item_pointers).intersection(set(self.df.index)))
+        self.item_pointers = self.df.index[self.df.index.isin(self.item_pointers)].tolist()
 
     def __getitem__(self, index):
         uid = self.item_pointers[index]
-        path_item = [self.path_root/uid/name for name in ['pre.nii.gz', 'post_1.nii.gz']]
+        path_item = [self.path_root/uid/name for name in [ 'sub.nii.gz' ]]
         img = self.load_item(path_item)
         target = self.df.loc[uid]['Malign']
         return {'uid':uid, 'source': self.transform(img), 'target':target}

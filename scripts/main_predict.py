@@ -20,7 +20,7 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 if __name__ == "__main__":
 
     #------------ Settings/Defaults ----------------
-    path_run = Path.cwd() / 'runs/2023_01_30_223957'
+    path_run = Path.cwd() / 'runs/'
     path_out = Path().cwd()/'results'/path_run.name
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,8 +32,8 @@ if __name__ == "__main__":
 
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
-        flip=True, 
-        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/odelia_dataset_unilateral_256x256x32/'
+        flip=False,
+        path_root = '/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user-odelia-breast-mri-192.168.33.102/data-and-scratch/app-data/deployment_dataset/'
     )
 
     # WARNING: Very simple split approach
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     
     dm = DataModule(
         ds_test = ds_test,
-        batch_size=4, 
+        batch_size=1,
         # num_workers=0,
         # pin_memory=True,
     ) 
@@ -61,12 +61,12 @@ if __name__ == "__main__":
 
         # Run Model 
         pred = model(source.to(device)).cpu()
-        pred = F.softmax(pred, dim=1)
+        pred = torch.sigmoid(pred)
         pred_binary = torch.argmax(pred, dim=1)
 
         results['GT'].extend(target.tolist())
         results['NN'].extend(pred_binary.tolist())
-        results['NN_pred'].extend(pred[:, 1].tolist())
+        results['NN_pred'].extend(pred[:, 0].tolist())
 
     df = pd.DataFrame(results)
     df.to_csv(path_out/'results.csv')
