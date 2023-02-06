@@ -26,8 +26,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=True, 
-        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/odelia_dataset_unilateral_256x256x32/'
-    )
+        path_root = '/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user-odelia-breast-mri-192.168.33.102/data-and-scratch/app-data/deployment_dataset/'    )
 
     # WARNING: Very simple split approach
     train_size = int(0.64 * len(ds))
@@ -36,7 +35,9 @@ if __name__ == "__main__":
     ds_train = Subset(ds, list(range(train_size)))
     ds_val = Subset(ds, list(range(train_size, train_size+val_size)))
     ds_test = Subset(ds, list(range(train_size+val_size, len(ds))))
-    
+    print('train_size: ',train_size)
+    print('val_size: ',val_size)
+    print('test_size: ',ds_train)
     dm = DataModule(
         ds_train = ds_train,
         ds_val = ds_val,
@@ -59,7 +60,7 @@ if __name__ == "__main__":
     early_stopping = EarlyStopping(
         monitor=to_monitor,
         min_delta=0.0, # minimum change in the monitored quantity to qualify as an improvement
-        patience=5, # number of checks with no improvement
+        patience=10, # number of checks with no improvement
         mode=min_max
     )
     checkpointing = ModelCheckpoint(

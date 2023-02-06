@@ -1,6 +1,7 @@
 from odelia.models import BasicClassifier
 import monai.networks.nets as nets
 import torch 
+import torch.nn.functional as F
 
 
 class ResNet(BasicClassifier):
@@ -28,3 +29,9 @@ class ResNet(BasicClassifier):
     def forward(self, x_in, **kwargs):
         pred_hor = self.model(x_in)
         return pred_hor
+
+    #def training_step(self, batch, batch_idx):
+        #source, target = batch['source'], batch['target']
+        #y_hat = self(source)
+        #loss = F.cross_entropy(y_hat, target)
+        #return loss

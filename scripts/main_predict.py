@@ -20,7 +20,7 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 if __name__ == "__main__":
 
     #------------ Settings/Defaults ----------------
-    path_run = Path.cwd() / 'runs/'
+    path_run = Path.cwd() / 'runs/2023_02_06_175325'
     path_out = Path().cwd()/'results'/path_run.name
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
