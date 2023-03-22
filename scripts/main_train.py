@@ -26,23 +26,20 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=True, 
-        path_root = '/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user-odelia-breast-mri-192.168.33.102/data-and-scratch/app-data/deployment_dataset/'    )
+        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/divided_odelia_dataset/3d-cnn/train/')
 
     # WARNING: Very simple split approach
-    train_size = int(0.64 * len(ds))
-    val_size = int(0.16 * len(ds))
-    test_size = len(ds) - train_size - val_size
+    train_size = int(0.8 * len(ds))
+    val_size = int(0.2 * len(ds))
     ds_train = Subset(ds, list(range(train_size)))
     ds_val = Subset(ds, list(range(train_size, train_size+val_size)))
-    ds_test = Subset(ds, list(range(train_size+val_size, len(ds))))
     print('train_size: ',train_size)
     print('val_size: ',val_size)
     print('test_size: ',ds_train)
     dm = DataModule(
         ds_train = ds_train,
         ds_val = ds_val,
-        ds_test = ds_test,
-        batch_size=1, 
+        batch_size=1,
         # num_workers=0,
         pin_memory=True,
     ) 
@@ -60,7 +57,7 @@ if __name__ == "__main__":
     early_stopping = EarlyStopping(
         monitor=to_monitor,
         min_delta=0.0, # minimum change in the monitored quantity to qualify as an improvement
-        patience=10, # number of checks with no improvement
+        patience=5, # number of checks with no improvement
         mode=min_max
     )
     checkpointing = ModelCheckpoint(
@@ -77,7 +74,7 @@ if __name__ == "__main__":
         precision=16,
         # gradient_clip_val=0.5,
         default_root_dir=str(path_run_dir),
-        callbacks=[checkpointing, early_stopping], 
+        callbacks=[checkpointing], #, early_stopping
         enable_checkpointing=True,
         check_val_every_n_epoch=1,
         log_every_n_steps=log_every_n_steps, 
@@ -85,7 +82,7 @@ if __name__ == "__main__":
         # limit_train_batches=1,
         # limit_val_batches=0, # 0 = disable validation - Note: Early Stopping no longer available 
         min_epochs=20,
-        max_epochs=1001,
+        max_epochs=300,
         num_sanity_val_steps=2,
         logger=TensorBoardLogger(save_dir=path_run_dir)
     )

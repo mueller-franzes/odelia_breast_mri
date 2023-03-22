@@ -20,7 +20,9 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 if __name__ == "__main__":
 
     #------------ Settings/Defaults ----------------
-    path_run = Path.cwd() / 'runs/2023_02_06_175325'
+    #path_run = Path.cwd() / 'runs/2023_02_06_175325'
+    #path_run = Path('/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user-odelia-breast-mri-192.168.33.102/data-and-scratch/scratch/2023_02_06_205810/')
+    path_run = Path('/home/swarm/PycharmProjects/odelia_breast_mri/scripts/runs/2023_03_19_221332')
     path_out = Path().cwd()/'results'/path_run.name
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,14 +35,11 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=False,
-        path_root = '/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user-odelia-breast-mri-192.168.33.102/data-and-scratch/app-data/deployment_dataset/'
+        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/divided_odelia_dataset/3d-cnn/test/'
     )
 
     # WARNING: Very simple split approach
-    train_size = int(0.64 * len(ds))
-    val_size = int(0.16 * len(ds))
-    test_size = len(ds) - train_size - val_size
-    ds_test = Subset(ds, list(range(train_size+val_size, len(ds))))
+    ds_test = ds
     
     dm = DataModule(
         ds_test = ds_test,
