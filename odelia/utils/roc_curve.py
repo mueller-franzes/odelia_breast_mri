@@ -1,8 +1,10 @@
-import numpy as np 
+import os.path
+
+import numpy as np
 from sklearn.metrics import roc_curve, auc, confusion_matrix
 import matplotlib
 
-def plot_roc_curve(y_true, y_score, axis, bootraping=1000, drop_intermediate=False, fontdict={}):
+def plot_roc_curve(y_true, y_score, axis, bootraping=1000, drop_intermediate=False, fontdict={}, path_out=None):
     # ----------- Bootstrapping ------------
     tprs, aucs, thrs = [], [], []
     mean_fpr = np.linspace(0, 1, 100)
@@ -43,6 +45,11 @@ def plot_roc_curve(y_true, y_score, axis, bootraping=1000, drop_intermediate=Fal
 
     axis.plot(fprs, tprs, color='b', label=rf"ROC (AUC = {auc_val:.2f} $\pm$ {std_auc:.2f})",
                 lw=2, alpha=.8)
+    #save the AUC value to a file under the same directory
+
+    with open(os.path.join(path_out, 'AUC.txt'), 'w') as f:
+        f.write(str(rf"ROC (AUC = {auc_val:.2f} $\pm$ {std_auc:.2f})"))
+
     axis.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2, label=r'$\pm$ 1 std. dev.')
     axis.hlines(y=opt_tpr, xmin=0.0, xmax=opt_fpr, color='g', linestyle='--')
     axis.vlines(x=opt_fpr, ymin=0.0, ymax=opt_tpr, color='g', linestyle='--')
