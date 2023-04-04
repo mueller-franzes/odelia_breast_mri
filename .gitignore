@@ -22,3 +22,6 @@
 /results
 
 !/media/**
+
+**/results/**
+**/training_runs/**
