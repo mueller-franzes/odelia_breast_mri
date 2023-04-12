@@ -10,7 +10,7 @@ from torch.utils.data.dataset import Subset
 
 from odelia.data.datasets import DUKE_Dataset3D
 from odelia.data.datamodules import DataModule
-from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet121, UNet3D
+from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, ResNet2D
 import os
 import argparse
 
@@ -69,6 +69,8 @@ if __name__ == "__main__":
     if layers is not None:
         # ------------ Initialize Model ------------
         model = ResNet(in_ch=1, out_ch=1, spatial_dims=3, layers=layers)
+    if args.network == 'ResNet2D':
+            model = ResNet2D(in_ch=1, out_ch=1)
     elif args.network in ['efficientnet_l1', 'efficientnet_l2', 'efficientnet_b4', 'efficientnet_b7']:
         model = EfficientNet(model_name=args.network, in_ch=1, out_ch=1, spatial_dims=3)
     elif args.network == 'EfficientNet3Db0':
@@ -98,8 +100,8 @@ if __name__ == "__main__":
             "r6_k5_s11_e6_i160_o256_se0.25",
             "r6_k5_s22_e6_i256_o384_se0.25",
             "r3_k3_s11_e6_i384_o640_se0.25"]
-    elif args.network == 'DenseNet121':
-        model = DenseNet121(in_ch=1, out_ch=1, spatial_dims=3)
+    elif args.network in['DenseNet121','DenseNet169','DenseNet201','DenseNet264'] :
+        model = DenseNet(in_ch=1, out_ch=1, spatial_dims=3, model_name=args.network)
     elif args.network == 'UNet3D':
         model = UNet3D(in_ch=1, out_ch=1, spatial_dims=3)
     else:
