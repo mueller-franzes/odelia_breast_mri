@@ -5,13 +5,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Set the path to your results directory
-results_dir = '../results'
+results_dir = '/media/swarm/DGX_EXTERNAL/jeff/training_runs_ext_val/'
 
 # Initialize a dictionary to store AUC values per folder category
 auc_dict = defaultdict(list)
 
 # Traverse the directory tree
 for root, _, files in os.walk(results_dir):
+    #get the folder name
+    folder = os.path.basename(root)
+    #print(folder)
     for file in files:
         if file == 'AUC.txt':
             folder_name = os.path.basename(root)
@@ -27,7 +30,7 @@ for root, _, files in os.walk(results_dir):
                 if auc_match:
                     auc_value = float(auc_match.group(1))
                     auc_dict[folder_category].append(auc_value)
-
+print(auc_dict)
 # Sort categories alphabetically and create box chart from AUC values
 categories = sorted(auc_dict.keys())
 auc_values = [auc_dict[category] for category in categories]

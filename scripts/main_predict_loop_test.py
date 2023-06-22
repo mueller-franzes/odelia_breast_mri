@@ -35,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('--network', default=None, help='')
 
     args = parser.parse_args()
-    dir_path = '/mnt/sda1/Duke Compare/trained_models/'
+    dir_path = '/mnt/sda1/Duke Compare/trained_models/Host_100/ResNet152/'
     folders = [x[0] for x in os.walk(dir_path)]
 
     valid_folders = [folder for folder in folders if os.path.exists(os.path.join(folder, 'last.ckpt'))]
@@ -52,14 +52,14 @@ if __name__ == "__main__":
             #print(str(path_out))
         # convert the directory to a Path object
         path_run = Path(scratch)
-        args.network = str(path_run).split('_')[-3]
+        args.network = str(path_run).split('_')[-1]
         print(args.network)
         # get the parts of the path after the original root
         #sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models')
-        sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models')
+        sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models/Host_100/ResNet152/')
 
         # create the new root directory
-        new_root = Path('/mnt/sda1/Duke Compare/ext_val_results')
+        new_root = Path('/media/swarm/DGX_EXTERNAL/jeff/training_runs_ext_val')
 
         # combine the new root with the sub path
         path_out = new_root / sub_path
@@ -109,6 +109,9 @@ if __name__ == "__main__":
             if layers is not None:
                 # ------------ Initialize Model ------------
                 model = ResNet.load_best_checkpoint(path_run, version=0, layers=layers)
+            else:
+                model = None
+            '''
             elif args.network == 'ResNet2D':
                 model = ResNet2D(in_ch=1, out_ch=1)
             elif args.network in ['efficientnet_l1', 'efficientnet_l2', 'efficientnet_b4', 'efficientnet_b7']:
@@ -146,11 +149,13 @@ if __name__ == "__main__":
                 model = DenseNet.load_best_checkpoint(path_run, in_ch=1, out_ch=1, spatial_dims=3, model_name=args.network)
             elif args.network == 'UNet3D':
                 model = UNet3D.load_best_checkpoint(path_run, in_ch=1, out_ch=1, spatial_dims=3)
+            
             else:
                 raise Exception("Invalid network model specified")
 
             if args.network.startswith('EfficientNet3D'):
                 model = EfficientNet3D.load_best_checkpoint(path_run, version=0, blocks_args_str=blocks_args_str)
+                '''
         except Exception as e:
             with open("logfile.txt", "a") as log_file:  # "a" means append mode, "w" for write mode
                 # Print exception details into the log file
@@ -195,22 +200,25 @@ if __name__ == "__main__":
                     plt.savefig(f'{path_out}/grad_cam_slice_{slice_index}.png')
                     plt.close()
         '''
-        results = {'GT':[], 'NN':[], 'NN_pred':[]}
+        results = {'uid': [],'GT':[], 'NN':[], 'NN_pred':[]}
         for batch in tqdm(dm.test_dataloader()):
             source, target = batch['source'], batch['target']
-
+            #get batch keys
+            #print(batch['uid'])
             # Run Model
             pred = model(source.to(device)).cpu()
             pred = torch.sigmoid(pred)
-            pred_binary = torch.argmax(pred, dim=1)
+            pred_binary = (pred > 0.5).type(torch.long)
+            #print(float(pred_binary)), print(float(pred))
 
+            results['uid'].extend(batch['uid'])
             results['GT'].extend(target.tolist())
-            results['NN'].extend(pred_binary.tolist())
+            results['NN'].extend(pred_binary[:, 0].tolist())
             results['NN_pred'].extend(pred[:, 0].tolist())
-
+        #print(results)
         df = pd.DataFrame(results)
         df.to_csv(path_out/'results.csv')
-
+        #print(df)
         #  -------------------------- Confusion Matrix -------------------------
         cm = confusion_matrix(df['GT'], df['NN'])
         tn, fp, fn, tp = cm.ravel()
@@ -221,6 +229,7 @@ if __name__ == "__main__":
         # ------------------------------- ROC-AUC ---------------------------------
         fig, axis = plt.subplots(ncols=1, nrows=1, figsize=(6,6))
         y_pred_lab = np.asarray(df['NN_pred'])
+        print(y_pred_lab)
         y_true_lab = np.asarray(df['GT'])
         tprs, fprs, auc_val, thrs, opt_idx, cm = plot_roc_curve(y_true_lab, y_pred_lab, axis, fontdict=fontdict, path_out = path_out)
         print('auc_val: ', auc_val)

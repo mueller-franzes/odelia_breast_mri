@@ -28,26 +28,16 @@ if __name__ == "__main__":
     parser.add_argument('--network', default=None, help='')
 
     args = parser.parse_args()
+    #print(args)
+    args.network='ResNet101'
+    args.path_run='/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user/data-and-scratch/scratch/2023_06_14_134125_DUKE_ResNet101_swarm_learning'
+    path_run = Path(args.path_run)
 
-    #------------ Settings/Defaults ----------------
-    if args.path_run:
-        path_run = Path(args.path_run)
-        args.network = str(path_run).split('_')[-1]
-        if len(args.network) == 2:
-            args.network = 'efficientnet_' + args.network
-        print(args.network)
-    else:
-        path_run = Path('/home/jeff/PycharmProjects/odelia_breast_mri/2023_04_06_084638_DUKE_ResNet50_swarm_learning')
-        args.network = str(path_run).split('_')[-1]
-        if len(args.network) == 2:
-            args.network = 'efficientnet_' + args.network
-        #args.network="ResNet50"
-        print(args.network)
     if args.path_out:
         path_out = Path(args.path_out)
     else:
         path_out = Path().cwd()/'results'/path_run.name
-        print(path_out)
+        print(str(path_out))
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -56,12 +46,12 @@ if __name__ == "__main__":
     # ------------ Logging --------------------
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO)
-#./workspace/automate_scripts/launch_sl/run_swop.sh -w <workspace_name> -s <sentinel_ip_address>  -d <host_index>
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=False,
-        path_root = '/home/jeff/dataset/duke_3d/test/'
+        path_root = '/mnt/sda1/Oliver/data/'
     )
+
 
     # WARNING: Very simple split approach
     ds_test = ds
@@ -72,75 +62,26 @@ if __name__ == "__main__":
         # num_workers=0,
         # pin_memory=True,
     )
-    if args.network == 'ResNet18':
-        layers = [2, 2, 2, 2]
-    elif args.network == 'ResNet34':
-        layers = [3, 4, 6, 3]
-    elif args.network == 'ResNet50':
-        layers = [3, 4, 6, 3]
-    elif args.network == 'ResNet101':
-        layers = [3, 4, 23, 3]
-    elif args.network == 'ResNet152':
-        layers = [3, 8, 36, 3]
-    else:
-        layers = None
-    print(layers)
-    if layers is not None:
-        # ------------ Initialize Model ------------
-        model = ResNet.load_best_checkpoint(path_run, version=0, layers =layers)
-        print('1212')
-    elif args.network == 'ResNet2D':
-        model = ResNet2D(in_ch=1, out_ch=1)
-    elif args.network in ['efficientnet_l1', 'efficientnet_l2', 'efficientnet_b4', 'efficientnet_b7']:
-        model = EfficientNet.load_best_checkpoint(path_run, version=0, model_name = args.network)
-    elif args.network == 'EfficientNet3Db0':
-        blocks_args_str = [
-            "r1_k3_s11_e1_i32_o16_se0.25",
-            "r2_k3_s22_e6_i16_o24_se0.25",
-            "r2_k5_s22_e6_i24_o40_se0.25",
-            "r3_k3_s22_e6_i40_o80_se0.25",
-            "r3_k5_s11_e6_i80_o112_se0.25",
-            "r4_k5_s22_e6_i112_o192_se0.25",
-            "r1_k3_s11_e6_i192_o320_se0.25"]
-    elif args.network == 'EfficientNet3Db4':
-        blocks_args_str = [
-            "r1_k3_s11_e1_i48_o24_se0.25",
-            "r3_k3_s22_e6_i24_o32_se0.25",
-            "r3_k5_s22_e6_i32_o56_se0.25",
-            "r4_k3_s22_e6_i56_o112_se0.25",
-            "r4_k5_s11_e6_i112_o160_se0.25",
-            "r5_k5_s22_e6_i160_o272_se0.25",
-            "r2_k3_s11_e6_i272_o448_se0.25"]
-    elif args.network == 'EfficientNet3Db7':
-        blocks_args_str = [
-            "r1_k3_s11_e1_i32_o32_se0.25",
-            "r4_k3_s22_e6_i32_o48_se0.25",
-            "r4_k5_s22_e6_i48_o80_se0.25",
-            "r4_k3_s22_e6_i80_o160_se0.25",
-            "r6_k5_s11_e6_i160_o256_se0.25",
-            "r6_k5_s22_e6_i256_o384_se0.25",
-            "r3_k3_s11_e6_i384_o640_se0.25"]
-    elif args.network in ['DenseNet121', 'DenseNet169', 'DenseNet201', 'DenseNet264']:
-        model = DenseNet.load_best_checkpoint(path_run, in_ch=1, out_ch=1, spatial_dims=3, model_name=args.network)
-    elif args.network == 'UNet3D':
-        model = UNet3D.load_best_checkpoint(path_run, in_ch=1, out_ch=1, spatial_dims=3)
-    else:
-        raise Exception("Invalid network model specified")
-
-    if args.network.startswith('EfficientNet3D'):
-        model = EfficientNet3D.load_best_checkpoint(path_run, version=0, blocks_args_str = blocks_args_str)
+    #print(dm)
+    #print('#####################')
+    #elif args.network == 'ResNet101':
+    #layers = [3, 4, 23, 3]
+    args.network='ResNet101'
+    layers = [3, 4, 23, 3]
+    model = ResNet.load_best_checkpoint(path_run, version=0, layers =layers)
     #print(model)
-    #print(args.network)
     model.to(device)
     model.eval()
 
     results = {'GT':[], 'NN':[], 'NN_pred':[]}
     for batch in tqdm(dm.test_dataloader()):
+        print(batch)
         source, target = batch['source'], batch['target']
 
         # Run Model 
         pred = model(source.to(device)).cpu()
         pred = torch.sigmoid(pred)
+        #print(pred)
         pred_binary = torch.argmax(pred, dim=1)
 
         results['GT'].extend(target.tolist())

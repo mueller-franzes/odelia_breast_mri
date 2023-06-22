@@ -35,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('--network', default=None, help='')
 
     args = parser.parse_args()
-    dir_path = '/mnt/sda1/Duke Compare/trained_models/'
+    dir_path = '/mnt/sda1/Duke Compare/trained_extra101/sentinal_node/2023_05_05_083812_DUKE_ResNet101_swarm_learning'
     folders = [x[0] for x in os.walk(dir_path)]
 
     valid_folders = [folder for folder in folders if os.path.exists(os.path.join(folder, 'last.ckpt'))]
@@ -56,10 +56,10 @@ if __name__ == "__main__":
         print(args.network)
         # get the parts of the path after the original root
         #sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models')
-        sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models')
+        sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_extra101/sentinal_node/2023_05_05_083812_DUKE_ResNet101_swarm_learning')
 
         # create the new root directory
-        new_root = Path('/mnt/sda1/Duke Compare/ext_val_results')
+        new_root = Path('/mnt/sda1/Duke Compare/ext_val_gradcam')
 
         # combine the new root with the sub path
         path_out = new_root / sub_path
@@ -163,8 +163,8 @@ if __name__ == "__main__":
             continue
         model.to(device)
         model.eval()
+        print(model.model.layer4)
 
-        '''
         feature_layer = model.model.layer4  # Replace this with the layer you want to visualize
         gradcam = GradCAM(model, feature_layer)
         for idx, batch in enumerate(tqdm(dm.test_dataloader())):
@@ -187,6 +187,8 @@ if __name__ == "__main__":
                 heatmap = cm.jet(heatmap)[..., :3]  # Apply color map
 
                 num_slices = heatmap.shape[0]
+                # Normalize heatmap values
+                heatmap = (heatmap - heatmap.min()) / (heatmap.max() - heatmap.min())
 
                 for slice_index in range(num_slices):
                     plt.figure()
@@ -194,19 +196,8 @@ if __name__ == "__main__":
                     plt.axis('off')
                     plt.savefig(f'{path_out}/grad_cam_slice_{slice_index}.png')
                     plt.close()
-        '''
+
         results = {'GT':[], 'NN':[], 'NN_pred':[]}
-        for batch in tqdm(dm.test_dataloader()):
-            source, target = batch['source'], batch['target']
-
-            # Run Model
-            pred = model(source.to(device)).cpu()
-            pred = torch.sigmoid(pred)
-            pred_binary = torch.argmax(pred, dim=1)
-
-            results['GT'].extend(target.tolist())
-            results['NN'].extend(pred_binary.tolist())
-            results['NN_pred'].extend(pred[:, 0].tolist())
 
         df = pd.DataFrame(results)
         df.to_csv(path_out/'results.csv')

@@ -10,8 +10,9 @@ from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt 
 import seaborn as sns 
 import pandas as pd 
+import monai
 
-from odelia.data.datasets import DUKE_Dataset3D
+from odelia.data.datasets import DUKE_Dataset3D_external
 from odelia.data.datamodules import DataModule
 from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, ResNet2D
 from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
@@ -19,7 +20,20 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 import argparse
 
 
+def get_next_im(itera):
+    test_data = next(itera)
+    return test_data[0].to(device), test_data[1].unsqueeze(0).to(device)
 
+
+def plot_occlusion_heatmap(im, heatmap):
+    plt.subplots(1, 2)
+    plt.subplot(1, 2, 1)
+    plt.imshow(np.squeeze(im.cpu()))
+    plt.colorbar()
+    plt.subplot(1, 2, 2)
+    plt.imshow(heatmap)
+    plt.colorbar()
+    plt.show()
 if __name__ == "__main__":
     # Add command line arguments
     parser = argparse.ArgumentParser()
@@ -37,8 +51,8 @@ if __name__ == "__main__":
             args.network = 'efficientnet_' + args.network
         print(args.network)
     else:
-        path_run = Path('/home/jeff/PycharmProjects/odelia_breast_mri/2023_04_06_084638_DUKE_ResNet50_swarm_learning')
-        args.network = str(path_run).split('_')[-1]
+        path_run = Path('/mnt/sda1/Duke Compare/trained_models/Host_Sentinal/ResNet101/2023_04_08_113058_DUKE_ResNet101_swarm_learning')
+        args.network = str(path_run).split('_')[-3]
         if len(args.network) == 2:
             args.network = 'efficientnet_' + args.network
         #args.network="ResNet50"
@@ -48,6 +62,7 @@ if __name__ == "__main__":
     else:
         path_out = Path().cwd()/'results'/path_run.name
         print(path_out)
+    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/2023_04_08_113058_DUKE_ResNet101_swarm_learning_full_volumn')
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -58,20 +73,25 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 #./workspace/automate_scripts/launch_sl/run_swop.sh -w <workspace_name> -s <sentinel_ip_address>  -d <host_index>
     # ------------ Load Data ----------------
-    ds = DUKE_Dataset3D(
+    ds = DUKE_Dataset3D_external(
         flip=False,
-        path_root = '/home/jeff/dataset/duke_3d/test/'
+        path_root = '/mnt/sda1/Oliver/data_partial'
     )
 
     # WARNING: Very simple split approach
     ds_test = ds
-    
+
     dm = DataModule(
         ds_test = ds_test,
         batch_size=1,
         # num_workers=0,
         # pin_memory=True,
     )
+    #pack = monai.utils.misc.first(dm.test_dataloader())
+    #print(pack)
+    #print(type(im), im.shape, label, label.shape)
+    #args.network = 'ResNet101'
+
     if args.network == 'ResNet18':
         layers = [2, 2, 2, 2]
     elif args.network == 'ResNet34':
@@ -84,11 +104,11 @@ if __name__ == "__main__":
         layers = [3, 8, 36, 3]
     else:
         layers = None
-    print(layers)
+    #print(layers)
     if layers is not None:
         # ------------ Initialize Model ------------
-        model = ResNet.load_best_checkpoint(path_run, version=0, layers =layers)
-        print('1212')
+        model = ResNet.load_best_checkpoint(path_run, version=0, layers =layers, out_ch=1)
+        #print('1212')
     elif args.network == 'ResNet2D':
         model = ResNet2D(in_ch=1, out_ch=1)
     elif args.network in ['efficientnet_l1', 'efficientnet_l2', 'efficientnet_b4', 'efficientnet_b7']:
@@ -130,21 +150,128 @@ if __name__ == "__main__":
     if args.network.startswith('EfficientNet3D'):
         model = EfficientNet3D.load_best_checkpoint(path_run, version=0, blocks_args_str = blocks_args_str)
     #print(model)
-    #print(args.network)
+    print(args.network)
     model.to(device)
     model.eval()
 
-    results = {'GT':[], 'NN':[], 'NN_pred':[]}
+    itera = iter(dm.test_dataloader())
+
+
+    def boolean_to_onehot(tensor):
+        tensor = tensor.long()  # Convert boolean tensor to long type
+        num_classes = 2  # The number of classes, True and False, hence 2
+        one_hot = torch.nn.functional.one_hot(tensor, num_classes)  # Create a one-hot tensor
+        return one_hot.float()  # Return the tensor as float
+
+
+    def get_next_im():
+        test_data = next(itera)
+        #print(test_data)
+        # encode test_data['target'].unsqueeze(0) into one-hot
+        #print(test_data['target'].unsqueeze(0))
+        target = test_data['target']
+        one_hot_target = boolean_to_onehot(target)
+        return test_data['source'].to(device), one_hot_target, test_data['uid']
+
+
+    def plot_occlusion_heatmap(im, heatmap):
+        plt.subplots(1, 2)
+        plt.subplot(1, 2, 1)
+        plt.imshow(np.squeeze(im.cpu()))
+        plt.colorbar()
+        plt.subplot(1, 2, 2)
+        plt.imshow(heatmap)
+        plt.colorbar()
+        plt.show()
+
+
+    # Get a random image and its corresponding label
+    #labels = torch.nn.functional.one_hot(torch.as_tensor(labels)).float()
+    #img, label, uid = get_next_im()
+    #print('!!!!!!!')
+    #print(img.shape, label)
+    #print(uid)
+
+############################
+    '''
+    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=8, n_batch=2)
+
+    for depth_slice in range(2,img.shape[2]):
+        print(depth_slice)
+        occ_sens_b_box = [depth_slice - 1, depth_slice, -1, -1, -1, -1]
+        print(occ_sens_b_box)
+        occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
+        print(occ_result.shape)
+        occ_result = occ_result[0, label.argmax().item()][None]
+
+        fig, axes = plt.subplots(1, 2, figsize=(25, 15), facecolor="white")
+
+        for i, im in enumerate([img[:, :, depth_slice, ...], occ_result]):
+            cmap = "gray" if i == 0 else "jet"
+            ax = axes[i]
+            im_show = ax.imshow(np.squeeze(im[0][0].detach().cpu()), cmap=cmap)
+            ax.axis("off")
+            fig.colorbar(im_show, ax=ax)
+            plt.savefig(f"{path_out}/{uid}_{depth_slice}.png", bbox_inches="tight", pad_inches=0)
+
+            '''
+
+
+    results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}
+
+    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=50, n_batch=1, overlap=0.8, mode='mean_img')
     for batch in tqdm(dm.test_dataloader()):
+
+
+        ############################
+        target = batch['target']
+        one_hot_target = boolean_to_onehot(target)
+        img, label, uid=batch['source'].to(device), one_hot_target, batch['uid']
+        print(img.shape, label)
+        depth_slice = img.shape[2] // 2
+        occ_sens_b_box = [-1, -1, -1, -1, -1, -1]
+        #print(occ_sens_b_box)
+        occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box, mode='mean_img')
+        #print(occ_result.shape)
+
+        occ_result = occ_result[0, 0][None]
+
+        fig, axes = plt.subplots(1, 2, figsize=(25, 15), facecolor="white")
+        #print('1111111111111')
+        for i, im in enumerate([img[:, :, depth_slice, ...], occ_result]):
+            #print(i,im.shape)
+            cmap = "gray" if i == 0 else "jet"
+            ax = axes[i]
+            im_show = ax.imshow(np.squeeze(im[0][0].detach().cpu()), cmap=cmap)
+            ax.axis("off")
+            fig.colorbar(im_show, ax=ax)
+            # save img with unique slice id and uid
+            print('save img with unique slice id and uid')
+            plt.savefig(f"{path_out}/{uid}_{depth_slice}.png", bbox_inches="tight", pad_inches=0)
+
+    ##########################
+    '''
+    results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}
+    for batch in tqdm(dm.test_dataloader()):
+        img = batch['source'][0].to(device)
+        #label = batch['target'][0].to(device)
+        #print(batch['uid'])
+        # img shape is torch.Size([1, 32, 256, 256])
+        # get the first slice
+        img = img[:, 0, :, :].unsqueeze(0).unsqueeze(0)
+        #print(img.shape)
+        #print(label)
+
         source, target = batch['source'], batch['target']
 
         # Run Model 
         pred = model(source.to(device)).cpu()
         pred = torch.sigmoid(pred)
-        pred_binary = torch.argmax(pred, dim=1)
+        pred_binary = (pred > 0.5).type(torch.long)
 
+        results['uid'].extend(batch['uid'])
         results['GT'].extend(target.tolist())
-        results['NN'].extend(pred_binary.tolist())
+        results['NN'].extend(pred_binary[:, 0].tolist())
         results['NN_pred'].extend(pred[:, 0].tolist())
 
     df = pd.DataFrame(results)
@@ -186,3 +313,4 @@ if __name__ == "__main__":
     logger.info("Sensitivity {:.2f}".format(sens))
     logger.info("Specificity {:.2f}".format(spec))
 
+    '''
