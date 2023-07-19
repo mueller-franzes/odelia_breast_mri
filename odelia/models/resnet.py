@@ -10,6 +10,7 @@ class ResNet(BasicClassifier):
             in_ch,
             out_ch,
             spatial_dims=3,
+            pretrained=True,
             block='basic',
             layers=[3, 4, 6, 3],
             block_inplanes=[64, 128, 256, 512],

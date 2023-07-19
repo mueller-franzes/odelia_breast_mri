@@ -26,7 +26,7 @@ If not, change `pytorch-cuda=11.7` in the [environment.yaml](environment.yaml) f
     ```
 
 ## Step 2: Prepare Data 
-* Got to  [scripts/preprocessing/data_preparation.py](scripts/preprocessing/data_preparation.py)
+* Got to  [scripts/preprocessing/data_preparation.py](scripts/preprocessing/duke_dicom2nii.py)
 * Specify path to downloaded files as `path_root=...` 
 * Run script - It will store DICOM files as NIFTI files 
 * Got to [scripts/preprocessing/crop_or_pad.py](scripts/preprocessing/crop_or_pad.py)

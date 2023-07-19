@@ -12,7 +12,7 @@ import seaborn as sns
 import pandas as pd 
 import traceback
 
-from odelia.data.datasets import DUKE_Dataset3D_external
+from odelia.data.datasets import DUKE_Dataset3D
 from odelia.data.datamodules import DataModule
 from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, ResNet2D
 from odelia.models.resnet import GradCAM
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('--network', default=None, help='')
 
     args = parser.parse_args()
-    dir_path = '/mnt/sda1/Duke Compare/trained_extra101/'
+    dir_path = '/mnt/sda1/Duke Compare/trained_models/'
     folders = [x[0] for x in os.walk(dir_path)]
 
     valid_folders = [folder for folder in folders if os.path.exists(os.path.join(folder, 'last.ckpt'))]
@@ -56,10 +56,10 @@ if __name__ == "__main__":
         print(args.network)
         # get the parts of the path after the original root
         #sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models')
-        sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_extra101/')
+        sub_path = path_run.relative_to('/mnt/sda1/Duke Compare/trained_models/')
 
         # create the new root directory
-        new_root = Path('/mnt/sda1/Duke Compare/ext_val_results_final')
+        new_root = Path('/mnt/sda1/Duke Compare/rerun_internal')
 
         # combine the new root with the sub path
         path_out = new_root / sub_path
@@ -76,9 +76,9 @@ if __name__ == "__main__":
         logger = logging.getLogger(__name__)
         logging.basicConfig(level=logging.INFO)
         # ------------ Load Data ----------------
-        ds = DUKE_Dataset3D_external(
+        ds = DUKE_Dataset3D(
             flip=False,
-            path_root = '/mnt/sda1/Oliver/data/'
+            path_root = '/mnt/sda1/swarm-learning/radiology-dataset/divided_odelia_dataset/3d-cnn/test'
         )
 
 

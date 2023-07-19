@@ -12,10 +12,15 @@ import fnmatch
 target_string = "df = pd.DataFrame(data_list, columns=['Model', 'Category', 'AUC-ROC'])"
 directory = "/home/swarm/PycharmProjects/"  # replace with the path to the directory you want to search
 
-for root, dirnames, filenames in os.walk(directory):
-    for filename in fnmatch.filter(filenames, "*.py"):
-        filepath = os.path.join(root, filename)
-        with open(filepath, "r") as f:
-            contents = f.read()
-            if target_string in contents:
-                print(f"Found target string in {filepath}")
+import torch
+
+# Assuming your lists contain PyTorch tensors
+gradcam_result_list = [torch.randn(1, 1, 1, 256, 256) for _ in range(10)]
+gradcampp_result_list = [torch.randn(1, 1, 1, 256, 256) for _ in range(10)]
+occ_result_list = [torch.randn(1, 1, 1, 256, 256) for _ in range(10)]
+
+# Stack tensors along the third dimension
+gradcam_result_tensor = torch.stack(gradcam_result_list, dim=3).squeeze(0)
+gradcampp_result_tensor = torch.stack(gradcampp_result_list, dim=3).squeeze(0)
+occ_result_tensor = torch.stack(occ_result_list, dim=3).squeeze(0)
+print(gradcam_result_tensor.shape)

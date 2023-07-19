@@ -22,7 +22,8 @@ if __name__ == "__main__":
     parser.add_argument('--device_num', default=None, help='')
     parser.add_argument('--network', default=None, help='')
     args = parser.parse_args()
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.device_num  # Set to the desired GPU index
+    args.network = 'DenseNet121'
+    #os.environ["CUDA_VISIBLE_DEVICES"] = args.device_num  # Set to the desired GPU index
 
     #------------ Settings/Defaults ----------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
@@ -37,7 +38,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=True, 
-        path_root = '/home/jeff/dataset/duke_3d/train_val')
+        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/divided_odelia_dataset/3d-cnn/train')
 
     # WARNING: Very simple split approach
     train_size = int(0.8 * len(ds))
@@ -65,10 +66,11 @@ if __name__ == "__main__":
         layers = [3, 8, 36, 3]
     else:
         layers = None
-
+    print('layers: ',layers)
     if layers is not None:
         # ------------ Initialize Model ------------
         model = ResNet(in_ch=1, out_ch=1, spatial_dims=3, layers=layers)
+    #print('model: ',model)
     if args.network == 'ResNet2D':
             model = ResNet2D(in_ch=1, out_ch=1)
     elif args.network in ['efficientnet_l1', 'efficientnet_l2', 'efficientnet_b4', 'efficientnet_b7']:
@@ -104,7 +106,7 @@ if __name__ == "__main__":
         model = DenseNet(in_ch=1, out_ch=1, spatial_dims=3, model_name=args.network)
     elif args.network == 'UNet3D':
         model = UNet3D(in_ch=1, out_ch=1, spatial_dims=3)
-    else:
+    elif model is None:
         raise Exception("Invalid network model specified")
 
     if args.network.startswith('EfficientNet3D'):
@@ -147,7 +149,7 @@ if __name__ == "__main__":
         # limit_train_batches=1,
         # limit_val_batches=0, # 0 = disable validation - Note: Early Stopping no longer available 
         min_epochs=50,
-        max_epochs=200,
+        max_epochs=100,
         num_sanity_val_steps=2,
         logger=TensorBoardLogger(save_dir=path_run_dir)
     )

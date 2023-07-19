@@ -2,24 +2,38 @@ import os
 from pathlib import Path
 import logging
 from tqdm import tqdm
-import torch 
+import torch
 import torch.nn.functional as F
-import numpy as np 
+import numpy as np
 from torch.utils.data.dataset import Subset
 from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt 
-import seaborn as sns 
-import pandas as pd 
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 import monai
 
 from odelia.data.datasets import DUKE_Dataset3D_external
 from odelia.data.datamodules import DataModule
-from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, ResNet2D
+from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, \
+    ResNet2D
 from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 
 import argparse
+import matplotlib.pyplot as plt
+import monai
+import numpy as np
+import torch
 
 
+# model = ...
+# in_t = ...
+# model.zero_grad()
+# in_t = in_t.detach()
+# in_t.requires_grad = True
+# out_t = model(in_t)
+# out_t[10].backward()
+# gradcam = (in_t.grad * in_t).abs()
+import matplotlib.gridspec as gridspec
 def get_next_im(itera):
     test_data = next(itera)
     return test_data[0].to(device), test_data[1].unsqueeze(0).to(device)
@@ -34,6 +48,8 @@ def plot_occlusion_heatmap(im, heatmap):
     plt.imshow(heatmap)
     plt.colorbar()
     plt.show()
+
+
 if __name__ == "__main__":
     # Add command line arguments
     parser = argparse.ArgumentParser()
@@ -43,7 +59,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    #------------ Settings/Defaults ----------------
+    # ------------ Settings/Defaults ----------------
     if args.path_run:
         path_run = Path(args.path_run)
         args.network = str(path_run).split('_')[-1]
@@ -51,46 +67,47 @@ if __name__ == "__main__":
             args.network = 'efficientnet_' + args.network
         print(args.network)
     else:
-        path_run = Path('/mnt/sda1/Duke Compare/trained_models/Host_Sentinal/ResNet101/2023_04_08_113058_DUKE_ResNet101_swarm_learning')
+        path_run = Path(
+            '/mnt/sda1/Duke Compare/trained_models/Host_Sentinal/ResNet101/2023_04_08_113058_DUKE_ResNet101_swarm_learning')
         args.network = str(path_run).split('_')[-3]
         if len(args.network) == 2:
             args.network = 'efficientnet_' + args.network
-        #args.network="ResNet50"
+        # args.network="ResNet50"
         print(args.network)
     if args.path_out:
         path_out = Path(args.path_out)
     else:
-        path_out = Path().cwd()/'results'/path_run.name
+        path_out = Path().cwd() / 'results' / path_run.name
         print(path_out)
-    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/12')
+    path_out = Path(
+        '/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/2023_04_08_113058_DUKE_ResNet101_swarm_learning_full_volumn_visall_multiori_partial')
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
 
-
     # ------------ Logging --------------------
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO)
-#./workspace/automate_scripts/launch_sl/run_swop.sh -w <workspace_name> -s <sentinel_ip_address>  -d <host_index>
+    # ./workspace/automate_scripts/launch_sl/run_swop.sh -w <workspace_name> -s <sentinel_ip_address>  -d <host_index>
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D_external(
         flip=False,
-        path_root = '/mnt/sda1/Oliver/data_partial'
+        path_root='/mnt/sda1/Oliver/data_partial'
     )
 
     # WARNING: Very simple split approach
     ds_test = ds
 
     dm = DataModule(
-        ds_test = ds_test,
+        ds_test=ds_test,
         batch_size=1,
         # num_workers=0,
         # pin_memory=True,
     )
-    #pack = monai.utils.misc.first(dm.test_dataloader())
-    #print(pack)
-    #print(type(im), im.shape, label, label.shape)
-    #args.network = 'ResNet101'
+    # pack = monai.utils.misc.first(dm.test_dataloader())
+    # print(pack)
+    # print(type(im), im.shape, label, label.shape)
+    # args.network = 'ResNet101'
 
     if args.network == 'ResNet18':
         layers = [2, 2, 2, 2]
@@ -104,15 +121,15 @@ if __name__ == "__main__":
         layers = [3, 8, 36, 3]
     else:
         layers = None
-    #print(layers)
+    # print(layers)
     if layers is not None:
         # ------------ Initialize Model ------------
-        model = ResNet.load_best_checkpoint(path_run, version=0, layers =layers, out_ch=1)
-        #print('1212')
+        model = ResNet.load_best_checkpoint(path_run, version=0, layers=layers, out_ch=1)
+        # print('1212')
     elif args.network == 'ResNet2D':
         model = ResNet2D(in_ch=1, out_ch=1)
     elif args.network in ['efficientnet_l1', 'efficientnet_l2', 'efficientnet_b4', 'efficientnet_b7']:
-        model = EfficientNet.load_best_checkpoint(path_run, version=0, model_name = args.network)
+        model = EfficientNet.load_best_checkpoint(path_run, version=0, model_name=args.network)
     elif args.network == 'EfficientNet3Db0':
         blocks_args_str = [
             "r1_k3_s11_e1_i32_o16_se0.25",
@@ -148,8 +165,8 @@ if __name__ == "__main__":
         raise Exception("Invalid network model specified")
 
     if args.network.startswith('EfficientNet3D'):
-        model = EfficientNet3D.load_best_checkpoint(path_run, version=0, blocks_args_str = blocks_args_str)
-    #print(model)
+        model = EfficientNet3D.load_best_checkpoint(path_run, version=0, blocks_args_str=blocks_args_str)
+    # print(model)
     print(args.network)
     model.to(device)
     model.eval()
@@ -166,9 +183,9 @@ if __name__ == "__main__":
 
     def get_next_im():
         test_data = next(itera)
-        #print(test_data)
+        # print(test_data)
         # encode test_data['target'].unsqueeze(0) into one-hot
-        #print(test_data['target'].unsqueeze(0))
+        # print(test_data['target'].unsqueeze(0))
         target = test_data['target']
         one_hot_target = boolean_to_onehot(target)
         return test_data['source'].to(device), one_hot_target, test_data['uid']
@@ -185,69 +202,111 @@ if __name__ == "__main__":
         plt.show()
 
 
-    # Get a random image and its corresponding label
-    #labels = torch.nn.functional.one_hot(torch.as_tensor(labels)).float()
-    #img, label, uid = get_next_im()
-    #print('!!!!!!!')
-    #print(img.shape, label)
-    #print(uid)
+    results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}
+    # print(model)
+    # print model layer names and shapes
+    target_layers_list = []
+    for name, param in model.named_parameters():
+        print(name, param.shape)
+        if 'layer' in name:
+            if '3.0' in name:
+                name = ('.').join(name.split('.')[:3])
+                if name not in target_layers_list:
+                    target_layers_list.append(name)
+    for name in target_layers_list:
+        # print(name, param.shape)
+        target_layers = name
+        gradcam = monai.visualize.GradCAM(nn_module=model, target_layers=target_layers)
+        # cam = monai.visualize.CAM(nn_module=model, target_layers=target_layers, fc_layers='model.fc')
+        gradcampp = monai.visualize.GradCAMpp(nn_module=model, target_layers=target_layers)
+        occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=32, n_batch=1, overlap=0.9, mode='mean_img')
+        for batch in tqdm(dm.test_dataloader()):
 
-############################
-    '''
-    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=8, n_batch=2)
-
-    for depth_slice in range(2,img.shape[2]):
-        print(depth_slice)
-        occ_sens_b_box = [depth_slice - 1, depth_slice, -1, -1, -1, -1]
-        print(occ_sens_b_box)
-        occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
-        print(occ_result.shape)
-        occ_result = occ_result[0, label.argmax().item()][None]
-
-        fig, axes = plt.subplots(1, 2, figsize=(25, 15), facecolor="white")
-
-        for i, im in enumerate([img[:, :, depth_slice, ...], occ_result]):
-            cmap = "gray" if i == 0 else "jet"
-            ax = axes[i]
-            im_show = ax.imshow(np.squeeze(im[0][0].detach().cpu()), cmap=cmap)
-            ax.axis("off")
-            fig.colorbar(im_show, ax=ax)
-            plt.savefig(f"{path_out}/{uid}_{depth_slice}.png", bbox_inches="tight", pad_inches=0)
-
-            '''
-
-
-
-    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=8, n_batch=1)
-    for batch in tqdm(dm.test_dataloader()):
-        for depth_slice in range(1, 32, 3):
-            occ_result = []
-            #if depth_slice == 1 or depth_slice == 10 or depth_slice == 20 or depth_slice == 30:
-
+            ############################
             target = batch['target']
             one_hot_target = boolean_to_onehot(target)
-            img, label, uid=batch['source'].to(device), one_hot_target, batch['uid']
+            img, label, uid = batch['source'].to(device), one_hot_target, batch['uid']
             print(img.shape, label)
-            occ_sens_b_box = [depth_slice - 1, depth_slice, -1,-1,-1,-1]
-            #print(occ_sens_b_box)
-            occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
-            print(occ_result.shape)
-
+            # depth_slice = img.shape[2] // 2
+            gradcam_result_list = []
+            gradcampp_result_list = []
+            occ_sens_b_box = [-1, -1, -1, -1, -1, -1]
+            occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box, mode='mean_img')
             occ_result = occ_result[0, 0][None]
+            for depth_slice in range(32):
+                print('depth_slice', depth_slice)
+                # run CAM
 
-            fig, axes = plt.subplots(1, 2, figsize=(25, 15), facecolor="white")
-            #print('1111111111111')
-            for i, im in enumerate([img[:, :, depth_slice, ...], occ_result]):
-                #print(i,im.shape)
-                cmap = "gray" if i == 0 else "jet"
-                ax = axes[i]
-                im_show = ax.imshow(np.squeeze(im[0][0].detach().cpu()), cmap=cmap)
-                ax.axis("off")
-                fig.colorbar(im_show, ax=ax)
-                # save img with unique slice id and uid
-                print('save img with unique slice id and uid')
-                plt.savefig(f"{path_out}/{uid}_{depth_slice}.png", bbox_inches="tight", pad_inches=0)
+                gradcam_result = gradcam(x=img, class_idx=None)
+                gradcampp_result = gradcampp(x=img, class_idx=None)
 
+
+                #print('original cam_result.shape', cam_result.shape)
+
+                gradcam_result = gradcam_result[:, :, depth_slice, :, :]
+                gradcampp_result = gradcampp_result[:, :, depth_slice, :, :]
+                #print('cam_result.shape after getting depth slice', cam_result.shape)
+                gradcam_result_list.append(gradcam_result)
+                gradcampp_result_list.append(gradcampp_result)
+            # calculate mean of cam_result_list
+            gradcam_result = torch.mean(torch.stack(gradcam_result_list), dim=0)
+            gradcampp_result = torch.mean(torch.stack(gradcampp_result_list), dim=0)
+            #invert the color map for visualization,
+            gradcam_result = 1 - (gradcam_result - gradcam_result.min()) / (gradcam_result.max() - gradcam_result.min())
+            gradcampp_result = 1 - (gradcampp_result - gradcampp_result.min()) / (gradcampp_result.max() - gradcampp_result.min())
+            occ_result = 1 - (occ_result - occ_result.min()) / (occ_result.max() - occ_result.min())
+
+            # get mean of img
+            #print('img.shape', img.shape)
+            #img = torch.mean(img, dim=2, keepdim=True)
+            #print('img.shape after taking mean', img.shape)
+            n_examples = 2
+
+            # create a figure
+            fig = plt.figure(figsize=(10, 55), facecolor="white")  # More square aspect ratio
+
+            # define gridspec
+            gs = gridspec.GridSpec(4, 1, figure=fig, height_ratios=[1, 1, 1, 1])  # Equal height for each row
+
+            nrows = 4
+            ncols = 4  # Adjust this to change how many images are displayed per row
+
+            start_slice = 0
+            end_slice = 31
+            total_slices = end_slice - start_slice + 1
+
+            for row, (im, title) in enumerate(
+                    zip(
+                        [img, gradcam_result, gradcampp_result, occ_result],
+                        [name, "GradCam", "GradCam++", "OCA"],
+                    )
+            ):
+                cmap = "gray" if row == 0 else "jet"
+                if isinstance(im, torch.Tensor):
+                    im = im.cpu().detach()
+
+                print('im', im.shape)
+                if row == 0:
+                    # plot all the slices for img
+                    title = 'original series'
+                    # define a sub gridspec
+                    sub_gs = gs[row].subgridspec(nrows, ncols, wspace=0.01, hspace=0.01)  # reduced spacing
+                    for slice_index in range(start_slice, end_slice + 1, 2):
+                        i = (slice_index - start_slice) // ncols
+                        j = (slice_index - start_slice) % ncols
+                        ax = fig.add_subplot(sub_gs[i, j])
+                        ax.imshow(im[0, 0, slice_index], cmap=cmap)
+                        ax.axis("off")
+                else:
+                    ax = fig.add_subplot(gs[row])
+                    im_show = ax.imshow(im[0][0], cmap=cmap)
+                    ax.set_title(title, fontsize=25)
+                    ax.axis("off")
+                    fig.colorbar(im_show, ax=ax)
+
+            # save cam_result
+            plt.savefig(f"{path_out}/{uid}_{depth_slice}_{target_layers}_visall.png", bbox_inches="tight", pad_inches=0)
+            print('saved cam_result to ', f"{path_out}/{uid}_fullvol_eval_{target_layers}_visall.png")
     ##########################
     '''
     results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}

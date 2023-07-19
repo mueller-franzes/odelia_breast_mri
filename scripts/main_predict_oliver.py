@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns 
 import pandas as pd 
 
-from odelia.data.datasets import DUKE_Dataset3D
+from odelia.data.datasets import DUKE_Dataset3D_external
 from odelia.data.datamodules import DataModule
 from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, ResNet2D
 from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     #print(args)
     args.network='ResNet101'
-    args.path_run='/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user/data-and-scratch/scratch/2023_06_14_134125_DUKE_ResNet101_swarm_learning'
+    args.path_run='/home/swarm/PycharmProjects/odelia_breast_mri/scripts/runs/2023_07_06_181642'
     path_run = Path(args.path_run)
 
     if args.path_out:
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=logging.INFO)
     # ------------ Load Data ----------------
-    ds = DUKE_Dataset3D(
+    ds = DUKE_Dataset3D_external(
         flip=False,
         path_root = '/mnt/sda1/Oliver/data/'
     )
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     results = {'GT':[], 'NN':[], 'NN_pred':[]}
     for batch in tqdm(dm.test_dataloader()):
-        print(batch)
+        #print(batch)
         source, target = batch['source'], batch['target']
 
         # Run Model 

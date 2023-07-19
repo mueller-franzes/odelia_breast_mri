@@ -62,7 +62,7 @@ if __name__ == "__main__":
     else:
         path_out = Path().cwd()/'results'/path_run.name
         print(path_out)
-    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/12')
+    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/2023_04_08_113058_DUKE_ResNet101_swarm_learning_32slices_cam')
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -216,28 +216,28 @@ if __name__ == "__main__":
 
             '''
 
+    gradcampp = monai.visualize.GradCAM(nn_module=model, target_layers='model.layer3.1')
 
-
-    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=8, n_batch=1)
+    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=128, n_batch=1)
     for batch in tqdm(dm.test_dataloader()):
-        for depth_slice in range(1, 32, 3):
-            occ_result = []
+        for depth_slice in range(1, 32):
             #if depth_slice == 1 or depth_slice == 10 or depth_slice == 20 or depth_slice == 30:
 
             target = batch['target']
             one_hot_target = boolean_to_onehot(target)
             img, label, uid=batch['source'].to(device), one_hot_target, batch['uid']
             print(img.shape, label)
-            occ_sens_b_box = [depth_slice - 1, depth_slice, -1,-1,-1,-1]
+            #occ_sens_b_box = [depth_slice - 1, depth_slice, -1, -1, -1, -1]
             #print(occ_sens_b_box)
-            occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
-            print(occ_result.shape)
+            #occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
+            #print(occ_result.shape)
 
-            occ_result = occ_result[0, 0][None]
+            #occ_result = occ_result[0, 0][None]
+            gradcampp_result = gradcampp(x=img, class_idx=None)
 
             fig, axes = plt.subplots(1, 2, figsize=(25, 15), facecolor="white")
             #print('1111111111111')
-            for i, im in enumerate([img[:, :, depth_slice, ...], occ_result]):
+            for i, im in enumerate([img[:, :, depth_slice, ...], gradcampp_result[:, :, depth_slice, ...]]):
                 #print(i,im.shape)
                 cmap = "gray" if i == 0 else "jet"
                 ax = axes[i]

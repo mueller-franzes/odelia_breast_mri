@@ -20,6 +20,15 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 import argparse
 
 
+# model = ...
+# in_t = ...
+# model.zero_grad()
+# in_t = in_t.detach()
+# in_t.requires_grad = True
+# out_t = model(in_t)
+# out_t[10].backward()
+# gradcam = (in_t.grad * in_t).abs()
+
 def get_next_im(itera):
     test_data = next(itera)
     return test_data[0].to(device), test_data[1].unsqueeze(0).to(device)
@@ -62,7 +71,7 @@ if __name__ == "__main__":
     else:
         path_out = Path().cwd()/'results'/path_run.name
         print(path_out)
-    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/12')
+    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/2023_04_08_113058_DUKE_ResNet101_swarm_learning_full_volumn_gradcam')
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -217,37 +226,96 @@ if __name__ == "__main__":
             '''
 
 
+    results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}
+    #print(model)
+    # print model layer names and shapes
+    target_layers_list = []
+    for name, param in model.named_parameters():
+        print(name, param.shape)
+        if 'layer' in name:
+            # if name not in target_layers_list then add it
 
-    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=8, n_batch=1)
-    for batch in tqdm(dm.test_dataloader()):
-        for depth_slice in range(1, 32, 3):
-            occ_result = []
-            #if depth_slice == 1 or depth_slice == 10 or depth_slice == 20 or depth_slice == 30:
 
+            name = ('.').join(name.split('.')[:3])
+            if name not in target_layers_list:
+                target_layers_list.append(name)
+    for name in target_layers_list:
+        #print(name, param.shape)
+        target_layers = name
+        cam = monai.visualize.GradCAM(nn_module=model, target_layers=target_layers)
+        #cam = monai.visualize.CAM(nn_module=model, target_layers=target_layers, fc_layers='model.fc')
+        #cam = monai.visualize.GradCAMpp(nn_module=model, target_layers=target_layers)
+        #occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=50, n_batch=1, overlap=0.8, mode='mean_img')
+        for batch in tqdm(dm.test_dataloader()):
+
+
+            ############################
             target = batch['target']
             one_hot_target = boolean_to_onehot(target)
             img, label, uid=batch['source'].to(device), one_hot_target, batch['uid']
             print(img.shape, label)
-            occ_sens_b_box = [depth_slice - 1, depth_slice, -1,-1,-1,-1]
-            #print(occ_sens_b_box)
-            occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
-            print(occ_result.shape)
+            depth_slice = img.shape[2] // 2
+            print('depth_slice', depth_slice)
+            # run CAM
 
-            occ_result = occ_result[0, 0][None]
+            cam_result = cam(x=img, class_idx=None)
+            print('original cam_result.shape', cam_result.shape)
 
-            fig, axes = plt.subplots(1, 2, figsize=(25, 15), facecolor="white")
-            #print('1111111111111')
-            for i, im in enumerate([img[:, :, depth_slice, ...], occ_result]):
-                #print(i,im.shape)
-                cmap = "gray" if i == 0 else "jet"
-                ax = axes[i]
-                im_show = ax.imshow(np.squeeze(im[0][0].detach().cpu()), cmap=cmap)
+            cam_result = cam_result[:,:, depth_slice, :, :]
+            print('cam_result.shape after getting depth slice', cam_result.shape)
+            cam_result = 1-(cam_result - cam_result.min()) / (cam_result.max() - cam_result.min())
+
+            img = img[:,:, depth_slice, :, :]
+
+            #print(cam_result.shape)
+            #print(cam_result)
+            #plot heatmap based on CAM result
+            import glob
+            import os
+            import random
+            import tempfile
+
+            import matplotlib.pyplot as plt
+            import monai
+            import numpy as np
+            import torch
+            from IPython.display import clear_output
+            from monai.config import print_config
+            from monai.networks.utils import eval_mode
+
+            n_examples = 2
+            # get the depth slice of the img
+
+            subplot_shape = [3, n_examples]
+            example = 0
+
+            fig, axes = plt.subplots(*subplot_shape, figsize=(25, 15), facecolor="white")
+
+            for row, (im, title) in enumerate(
+                    zip(
+                        [img, cam_result],
+                        [name, "CAM"],
+                    )
+            ):
+                cmap = "gray" if row == 0 else "jet"
+                ax = axes[row, example]
+                if isinstance(im, torch.Tensor):
+                    im = im.cpu().detach()
+                print('im', im.shape)
+                if row == 0:
+                    im_show = ax.imshow((im[0][0].squeeze()), cmap=cmap)
+                else:
+                    im_show = ax.imshow(im[0][0], cmap=cmap)
+
+                ax.set_title(title, fontsize=25)
                 ax.axis("off")
                 fig.colorbar(im_show, ax=ax)
-                # save img with unique slice id and uid
-                print('save img with unique slice id and uid')
-                plt.savefig(f"{path_out}/{uid}_{depth_slice}.png", bbox_inches="tight", pad_inches=0)
-
+                #save cam_result
+                plt.savefig(f"{path_out}/{uid}_{depth_slice}_{target_layers}GradCAMpp.png", bbox_inches="tight", pad_inches=0)
+                print('saved cam_result to ', f"{path_out}/{uid}_{depth_slice}_{target_layers}GradCAMpp.png")
+            example += 1
+            if example == n_examples:
+                break
     ##########################
     '''
     results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}

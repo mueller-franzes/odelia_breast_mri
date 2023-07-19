@@ -62,7 +62,7 @@ if __name__ == "__main__":
     else:
         path_out = Path().cwd()/'results'/path_run.name
         print(path_out)
-    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/2023_04_08_113058_DUKE_ResNet101_swarm_learning')
+    path_out=Path('/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/test')
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D_external(
         flip=False,
-        path_root = '/mnt/sda1/Oliver/data'
+        path_root = '/mnt/sda1/Oliver/data_partial'
     )
 
     # WARNING: Very simple split approach
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
     results = {'uid': [], 'GT': [], 'NN': [], 'NN_pred': []}
 
-    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=8, n_batch=1)
+    occ_sens = monai.visualize.OcclusionSensitivity(nn_module=model, mask_size=74, n_batch=1)
     for batch in tqdm(dm.test_dataloader()):
 
 
@@ -228,7 +228,7 @@ if __name__ == "__main__":
         one_hot_target = boolean_to_onehot(target)
         img, label, uid=batch['source'].to(device), one_hot_target, batch['uid']
         print(img.shape, label)
-        depth_slice = img.shape[2] // 2
+        depth_slice = 16
         occ_sens_b_box = [depth_slice - 1, depth_slice, -1, -1, -1, -1]
         #print(occ_sens_b_box)
         occ_result, _ = occ_sens(x=img, b_box=occ_sens_b_box)
