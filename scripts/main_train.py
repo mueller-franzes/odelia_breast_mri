@@ -5,8 +5,8 @@ from datetime import datetime
 import torch 
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data.dataset import Subset
+from pytorch_lightning.loggers import WandbLogger
 
 from odelia.data.datasets import DUKE_Dataset3D
 from odelia.data.datamodules import DataModule
@@ -55,6 +55,7 @@ if __name__ == "__main__":
     to_monitor = "val/AUC_ROC"  
     min_max = "max"
     log_every_n_steps = 1
+    logger = WandbLogger(project='ODELIA', name="ResNet", log_model=False)
 
     early_stopping = EarlyStopping(
         monitor=to_monitor,
@@ -86,13 +87,13 @@ if __name__ == "__main__":
         min_epochs=20,
         max_epochs=1001,
         num_sanity_val_steps=2,
-        logger=TensorBoardLogger(save_dir=path_run_dir)
+        logger=logger
     )
     
     # ---------------- Execute Training ----------------
     trainer.fit(model, datamodule=dm)
 
     # ------------- Save path to best model -------------
-    model.save_best_checkpoint(trainer.logger.log_dir, checkpointing.best_model_path)
+    model.save_best_checkpoint(path_run_dir, checkpointing.best_model_path)
 
 
