@@ -6,11 +6,10 @@ Code base for breast MRI classification
 
 ## Step 0: Setup 
 * Clone this repository 
-* Make sure that your graphics card driver supports the current CUDA version 11.7. You can check this by running `nvidia-smi`. 
-If not, change `pytorch-cuda=11.7` in the [environment.yaml](environment.yaml) file or update your driver.
+* Make sure that your graphics card driver supports the current CUDA version 11.8. You can check this by running `nvidia-smi`. 
+If not, change `pytorch-cuda=11.8` in the [environment.yaml](environment.yaml) file or update your driver.
 * Run: `conda env create -f environment.yaml` (can take up to 30min)
 * Run `conda activate odelia`
-* Run `pip install -e .`
 
 ## Step 1: Download [DUKE](https://sites.duke.edu/mazurowski/resources/breast-cancer-mri-dataset/) Dataset
 * [Download](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=70226903) files form The Cancer Imaging Archive (TCIA)
@@ -36,7 +35,6 @@ If not, change `pytorch-cuda=11.7` in the [environment.yaml](environment.yaml) f
 ## Step 3: Run Training
 * Run Script: [scripts/main_train.py](scripts/main_train.py)
 * Make sure to set `path_root`
-* Supervise training by running `tensorboard --logdir runs`
 
 ## Step 4: Predict & Evaluate Performance
 * Run Script: [scripts/main_predict.py](scripts/main_predict.py)
