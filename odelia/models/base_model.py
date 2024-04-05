@@ -1,57 +1,52 @@
-from typing import List, Union
 from pathlib import Path
 import json
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.cloud_io import load as pl_load
-from pytorch_lightning.utilities.migration import pl_legacy_patch
-from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torchmetrics import AUROC, Accuracy
 
 
 class VeryBasicModel(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, save_hyperparameters=True):
         super().__init__()
-        self.save_hyperparameters()
+        if save_hyperparameters:
+            self.save_hyperparameters()
         self._step_train = -1
         self._step_val = -1
         self._step_test = -1
 
 
-    def forward(self, x_in):
+    def forward(self, x, cond=None):
         raise NotImplementedError
 
-    def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
+
+    def _step(self, batch: dict, batch_idx: int, state: str, step: int):
         raise NotImplementedError
     
-    def _epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]], state:str):
+    def _epoch_end(self, state:str):
         return 
 
-    def training_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0 ):
+    def training_step(self, batch: dict, batch_idx: int ):
         self._step_train += 1 
-        return self._step(batch, batch_idx, "train", self._step_train, optimizer_idx)
+        return self._step(batch, batch_idx, "train", self._step_train)
 
-    def validation_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
+    def validation_step(self, batch: dict, batch_idx: int):
         self._step_val += 1
-        return self._step(batch, batch_idx, "val", self._step_val, optimizer_idx )
+        return self._step(batch, batch_idx, "val", self._step_val )
 
-    def test_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
+    def test_step(self, batch: dict, batch_idx: int):
         self._step_test += 1
-        return self._step(batch, batch_idx, "test", self._step_test, optimizer_idx)
+        return self._step(batch, batch_idx, "test", self._step_test)
 
-    def training_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
-        self._epoch_end(outputs, "train")
-        return super().training_epoch_end(outputs)
+    def on_train_epoch_end(self) -> None: 
+        self._epoch_end("train")
 
-    def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
-        self._epoch_end(outputs, "val")
-        return super().validation_epoch_end(outputs)
+    def on_validation_epoch_end(self) -> None:
+        self._epoch_end("val")
 
-    def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
-        self._epoch_end(outputs, "test")
-        return super().test_epoch_end(outputs)
+    def on_test_epoch_end(self) -> None:
+        self._epoch_end("test")
 
 
 
@@ -75,12 +70,9 @@ class VeryBasicModel(pl.LightningModule):
     def load_pretrained(self, checkpoint_path, map_location=None, **kwargs):
         if checkpoint_path.is_dir():
             checkpoint_path = self._get_best_checkpoint_path(checkpoint_path, **kwargs)  
- 
-        with pl_legacy_patch():
-            if map_location is not None:
-                checkpoint = pl_load(checkpoint_path, map_location=map_location)
-            else:
-                checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+
+        checkpoint = torch.load(checkpoint_path, map_location=map_location)
+     
         return self.load_weights(checkpoint["state_dict"], **kwargs)
     
     def load_weights(self, pretrained_weights, strict=True, **kwargs):
@@ -97,13 +89,15 @@ class VeryBasicModel(pl.LightningModule):
 class BasicModel(VeryBasicModel):
     def __init__(
         self, 
-        optimizer=torch.optim.AdamW, 
+        optimizer=torch.optim.Adam, 
         optimizer_kwargs={'lr':1e-3, 'weight_decay':1e-2},
         lr_scheduler= None, 
         lr_scheduler_kwargs={},
+        save_hyperparameters=True
     ):
-        super().__init__()
-        self.save_hyperparameters()
+        super().__init__(save_hyperparameters=save_hyperparameters)
+        if save_hyperparameters:
+            self.save_hyperparameters()
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lr_scheduler = lr_scheduler 
@@ -113,9 +107,11 @@ class BasicModel(VeryBasicModel):
         optimizer = self.optimizer(self.parameters(), **self.optimizer_kwargs)
         if self.lr_scheduler is not None:
             lr_scheduler = self.lr_scheduler(optimizer, **self.lr_scheduler_kwargs)
-            return [optimizer], [lr_scheduler]
+            lr_scheduler_config  = {"scheduler": lr_scheduler, "interval": "epoch", "frequency": 1}
+            return [optimizer], [lr_scheduler_config ]
         else:
             return [optimizer]
+
 
 
 class BasicClassifier(BasicModel):
@@ -144,10 +140,11 @@ class BasicClassifier(BasicModel):
         self.acc = nn.ModuleDict({state:Accuracy(**acc_kwargs) for state in ["train_", "val_", "test_"]})
 
     
-    def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
+    def _step(self, batch: dict, batch_idx: int, state: str, step: int):
         source, target = batch['source'], batch['target']
         target = target[:,None].float()
         batch_size = source.shape[0]
+        self.batch_size = batch_size 
 
         # Run Model 
         pred = self(source)
@@ -164,14 +161,14 @@ class BasicClassifier(BasicModel):
             
             # ----------------- Log Scalars ----------------------
             for metric_name, metric_val in logging_dict.items():
-                self.log(f"{state}/{metric_name}", metric_val.cpu() if hasattr(metric_val, 'cpu') else metric_val, 
-                         batch_size=batch_size, on_step=True, on_epoch=True) 
+                self.log(f"{state}/{metric_name}", metric_val, batch_size=batch_size, on_step=True, on_epoch=True, 
+                         sync_dist=False) 
 
         return logging_dict['loss'] 
 
-    def _epoch_end(self, outputs, state):
-        batch_size = len(outputs)
+    def _epoch_end(self, state):
         for name, value in [("ACC", self.acc[state+"_"]), ("AUC_ROC", self.auc_roc[state+"_"])]:
-            self.log(f"{state}/{name}", value.compute().cpu(), batch_size=batch_size, on_step=False, on_epoch=True)
+            self.log(f"{state}/{name}", value.compute(), batch_size=self.batch_size, on_step=False, on_epoch=True, 
+                     sync_dist=True)
             value.reset()
 
