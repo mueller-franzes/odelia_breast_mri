@@ -165,3 +165,16 @@ class CropOrPad(tio.CropOrPad):
             crop = tio.Crop(cropping_params)
             subject = crop(subject)  # type: ignore[assignment]
         return subject
+    
+
+class RandomCropOrPad(tio.CropOrPad):
+    """CropOrPad but bounding box position is set randomly."""
+
+    @staticmethod
+    def _get_six_bounds_parameters( parameters: np.ndarray) :
+        result = []
+        for number in parameters:
+            ini = np.random.randint(low=0, high=number+1)
+            fin = number-ini
+            result.extend([ini, fin])
+        return tuple(result)

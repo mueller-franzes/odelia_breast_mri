@@ -3,7 +3,7 @@ from pathlib import Path
 import torch.utils.data as data 
 import torchio as tio 
 
-from odelia.data.augmentation.augmentations_3d import ImageToTensor, RescaleIntensity, ZNormalization
+from odelia.data.augmentation.augmentations_3d import ImageToTensor, RescaleIntensity, ZNormalization, RandomCropOrPad
 
 
 class SimpleDataset3D(data.Dataset):
@@ -16,7 +16,9 @@ class SimpleDataset3D(data.Dataset):
         image_resize = None,
         flip = False,
         image_crop = None,
+        random_center = False,
         norm='znorm_clip', 
+        noise=False,
         to_tensor = True,
     ):
         super().__init__()
@@ -27,8 +29,9 @@ class SimpleDataset3D(data.Dataset):
             self.transform = tio.Compose([
                 tio.Resize(image_resize) if image_resize is not None else tio.Lambda(lambda x: x),
                 tio.RandomFlip((0,1,2)) if flip else tio.Lambda(lambda x: x),
-                tio.CropOrPad(image_crop) if image_crop is not None else tio.Lambda(lambda x: x),
+                (RandomCropOrPad(image_crop, p=1) if random_center else tio.CropOrPad(image_crop)) if image_crop is not None else tio.Lambda(lambda x: x),
                 self.get_norm(norm),
+                tio.RandomNoise(std=(0.25,0.5)) if noise else tio.Lambda(lambda x: x),
                 ImageToTensor() if to_tensor else tio.Lambda(lambda x: x) # [C, W, H, D] -> [C, D, H, W]
             ])
         else:
