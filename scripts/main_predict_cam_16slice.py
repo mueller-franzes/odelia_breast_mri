@@ -13,7 +13,7 @@ import seaborn as sns
 import pandas as pd
 import monai
 
-from odelia.data.datasets import DUKE_Dataset3D_external
+from odelia.data.datasets import DUKE_Dataset3D_external, DUKE_Dataset3D_collab
 from odelia.data.datamodules import DataModule
 from odelia.models import ResNet, VisionTransformer, EfficientNet, EfficientNet3D, EfficientNet3Db7, DenseNet, UNet3D, \
     ResNet2D
@@ -34,6 +34,8 @@ import torch
 # out_t = model(in_t)
 # out_t[10].backward()
 # gradcam = (in_t.grad * in_t).abs()
+
+data_path = '/mnt/sda1/Oliver/data_best_athens/fp_redo'
 import matplotlib.gridspec as gridspec
 def get_next_im(itera):
     test_data = next(itera)
@@ -69,7 +71,7 @@ if __name__ == "__main__":
         print(args.network)
     else:
         path_run = Path(
-            '/mnt/sda1/Duke Compare/trained_models/Host_Sentinal/ResNet101/2023_04_08_113058_DUKE_ResNet101_swarm_learning')
+            '/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user/data-and-scratch/scratch/2024_03_18_173324_multi_ext_ResNet101_swarm_learning')
         args.network = str(path_run).split('_')[-3]
         if len(args.network) == 2:
             args.network = 'efficientnet_' + args.network
@@ -80,8 +82,7 @@ if __name__ == "__main__":
     else:
         path_out = Path().cwd() / 'results' / path_run.name
         print(path_out)
-    path_out = Path(
-        '/mnt/sda1/Duke Compare/ext_val_occlusion_sensitivity/data_both')
+    path_out = Path(data_path)
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -91,9 +92,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # ./workspace/automate_scripts/launch_sl/run_swop.sh -w <workspace_name> -s <sentinel_ip_address>  -d <host_index>
     # ------------ Load Data ----------------
-    ds = DUKE_Dataset3D_external(
+    ds = DUKE_Dataset3D_collab(
         flip=False,
-        path_root='/mnt/sda1/Oliver/data_both/'
+        path_root=data_path
     )
 
     # WARNING: Very simple split approach

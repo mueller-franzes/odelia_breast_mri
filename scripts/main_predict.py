@@ -1,4 +1,8 @@
 import os
+import sys
+
+sys.path.append("/opt/hpe/odelia_breast_mri/")
+
 from pathlib import Path
 import logging
 from tqdm import tqdm
@@ -37,7 +41,7 @@ if __name__ == "__main__":
             args.network = 'efficientnet_' + args.network
         print(args.network)
     else:
-        path_run = Path('/home/jeff/PycharmProjects/odelia_breast_mri/2023_04_06_084638_DUKE_ResNet50_swarm_learning')
+        path_run = Path('/opt/hpe/swarm-learning-hpe/workspace/odelia-breast-mri/user/data-and-scratch/scratch/2024_02_21_120636_DUKE_ext_ResNet101_swarm_learning')
         args.network = str(path_run).split('_')[-1]
         if len(args.network) == 2:
             args.network = 'efficientnet_' + args.network
