@@ -26,7 +26,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args.network = 'ResNet101'
     #os.environ["CUDA_VISIBLE_DEVICES"] = args.device_num  # Set to the desired GPU index
-    sequence = 'pre'
+    sequence = 'sub'
     endpoint='malignancy'
     if endpoint == 'malignancy':
         from odelia.data.datasets import DUKE_Dataset3D
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     ds = DUKE_Dataset3D(
         flip=True, 
-        path_root = '/mnt/sda1/swarm-learning/radiology-dataset/divided_odelia_dataset/3d-cnn/train',
+        path_root = '/mnt/sda1/swarm-learning/duke_masked_data/train',
         sequence=sequence)
 
     labels = ds.get_labels()
@@ -89,9 +89,17 @@ if __name__ == "__main__":
         ds_train = ds_train,
         ds_val = ds_val,
         batch_size=1,
-        num_workers=32,
+        num_workers=16,
         pin_memory=True,
     )
+
+    # print the first and second patiend id and the target
+    #for i in range(10):
+        #print('Patient ID: ',ds_train[i]['uid'])
+        #print('Target: ',ds_train[i]['target'])
+
+
+
     if args.network == 'ResNet18':
         layers = [2, 2, 2, 2]
     elif args.network == 'ResNet34':
@@ -183,7 +191,7 @@ if __name__ == "__main__":
         # limit_train_batches=1,
         # limit_val_batches=0, # 0 = disable validation - Note: Early Stopping no longer available 
         min_epochs=40,
-        max_epochs=100,
+        max_epochs=120,
         num_sanity_val_steps=2,
         logger=TensorBoardLogger(save_dir=path_run_dir)
     )
