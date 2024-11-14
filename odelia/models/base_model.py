@@ -56,15 +56,14 @@ class VeryBasicModel(pl.LightningModule):
             json.dump({'best_model_epoch': Path(best_model_path).name}, f)
 
     @classmethod
-    def _get_best_checkpoint_path(cls, path_checkpoint_dir, version=0, **kwargs):
-        path_version = 'lightning_logs/version_'+str(version)
-        with open(Path(path_checkpoint_dir) / path_version/ 'best_checkpoint.json', 'r') as f:
+    def _get_best_checkpoint_path(cls, path_checkpoint_dir, **kwargs):
+        with open(Path(path_checkpoint_dir) / 'best_checkpoint.json', 'r') as f:
             path_rel_best_checkpoint = Path(json.load(f)['best_model_epoch'])
         return Path(path_checkpoint_dir)/path_rel_best_checkpoint
 
     @classmethod
-    def load_best_checkpoint(cls, path_checkpoint_dir, version=0, **kwargs):
-        path_best_checkpoint = cls._get_best_checkpoint_path(path_checkpoint_dir, version)
+    def load_best_checkpoint(cls, path_checkpoint_dir, **kwargs):
+        path_best_checkpoint = cls._get_best_checkpoint_path(path_checkpoint_dir)
         return cls.load_from_checkpoint(path_best_checkpoint, **kwargs)
 
     def load_pretrained(self, checkpoint_path, map_location=None, **kwargs):
@@ -120,7 +119,7 @@ class BasicClassifier(BasicModel):
         in_ch,
         out_ch,
         spatial_dims,
-        loss = torch.nn.CrossEntropyLoss,
+        loss = torch.nn.BCEWithLogitsLoss,
         loss_kwargs = {},
         optimizer=torch.optim.AdamW, 
         optimizer_kwargs={'lr':1e-3, 'weight_decay':1e-2},
@@ -142,7 +141,8 @@ class BasicClassifier(BasicModel):
     
     def _step(self, batch: dict, batch_idx: int, state: str, step: int):
         source, target = batch['source'], batch['target']
-        target = target[:,None].float()
+        if isinstance(self.loss, torch.nn.BCEWithLogitsLoss):
+            target = target[:,None].float()
         batch_size = source.shape[0]
         self.batch_size = batch_size 
 
