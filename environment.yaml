@@ -3,22 +3,25 @@ channels:
   - defaults
   - pytorch
   - nvidia
-  - conda-forge
 dependencies:
-  - python=3.8
-  - pandas
-  - numpy
-  - tqdm
-  - openpyxl
-  - torchio
-  - pytorch-cuda=11.8
-  - pytorch 
-  - torchvision 
-  - torchaudio 
-  - monai
-  - pytorch-lightning
-  - scikit-learn
-  - matplotlib
-  - seaborn 
-  - wandb
-  - -e .
+  - python=3.10
+  - pip
+  - pytorch=2.2.2
+  - torchvision=0.17.2
+  - torchaudio=2.2.2
+  - pytorch-cuda=12.1  
+  - pip:
+    - pytorch-lightning=2.4.0
+    - torchio=0.20.1
+    - monai=1.4.0
+    - pandas=2.2.3
+    - numpy=1.26.4
+    - tqdm=4.67.0
+    - openpyxl=3.1.5
+    - scikit-learn=1.5.2
+    - matplotlib=3.9.2
+    - seaborn=0.13.2
+    - wandb=0.18.6
+    - einops=0.8.0
+    - pydicom=3.0.1
+    - -e .
