@@ -29,7 +29,7 @@ class ODELIA_Dataset3D(data.Dataset):
         self.path_root = Path(self.PATH_ROOT if path_root is None else path_root)
         self.split = split 
         
-        if (institutions is None) or (institutions == "All"):
+        if (institutions is None) or (institutions == "ODELIA"):
             institutions = self.ALL_INSTITUTIONS
         elif isinstance(institutions, str):
             institutions = [institutions]
