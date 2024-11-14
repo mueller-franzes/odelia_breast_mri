@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 import logging
 from tqdm import tqdm
@@ -10,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns 
 import pandas as pd 
 
-from odelia.data.datasets import DUKE_Dataset3D
+from odelia.data.datasets import ODELIA_Dataset3D
 from odelia.data.datamodules import DataModule
 from odelia.models import ResNet
 from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
@@ -18,10 +19,20 @@ from odelia.utils.roc_curve import plot_roc_curve, cm2acc, cm2x
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path_run', default='/home/gustav/code/odelia_breast_mri/runs/RSH/2024_11_14_132823', type=str)
+    parser.add_argument('--test_institution', default='', type=str) # Leave empty to test model on the test set of the training institution 
+    args = parser.parse_args()
+
+    labels = ['No Lesion', "Benign Lesion", 'Malignant Lesion']
+    label_colors = {'No Lesion':'b', "Benign Lesion":'g', 'Malignant Lesion':'r'}
 
     #------------ Settings/Defaults ----------------
-    path_run = Path.cwd() / 'runs/2023_01_30_084906'
-    path_out = Path().cwd()/'results'/path_run.name
+    path_run = Path(args.path_run) 
+    train_institution = path_run.parts[-2]
+    version = path_run.parts[-1]
+    test_institution = train_institution if args.test_institution == "" else args.test_institution
+    path_out = Path().cwd()/'results'/train_institution/version/test_institution
     path_out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fontdict = {'fontsize': 10, 'fontweight': 'bold'}
@@ -31,17 +42,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     # ------------ Load Data ----------------
-    ds = DUKE_Dataset3D(
-        flip=False, 
-        path_root = '/mnt/hdd/datasets/breast/DUKE/dataset_unilateral_256x256x32'
-    )
+    ds_test = ODELIA_Dataset3D(institutions=test_institution, split='test')
 
-    # WARNING: Very simple split approach
-    train_size = int(0.64 * len(ds))
-    val_size = int(0.16 * len(ds))
-    test_size = len(ds) - train_size - val_size
-    ds_test = Subset(ds, list(range(train_size+val_size, len(ds))))
-    
+
     dm = DataModule(
         ds_test = ds_test,
         batch_size=1, 
@@ -51,56 +54,56 @@ if __name__ == "__main__":
 
 
     # ------------ Initialize Model ------------
-    model = ResNet.load_best_checkpoint(path_run, version=0)
+    model = ResNet.load_best_checkpoint(path_run)
     model.to(device)
     model.eval()
 
-    results = {'GT':[], 'NN':[], 'NN_pred':[]}
+    results = {'GT':[], 'NN':[], 'NN_prob':[]}
     for batch in tqdm(dm.test_dataloader()):
         source, target = batch['source'], batch['target']
 
         # Run Model 
         pred = model(source.to(device)).cpu()
-        pred = torch.sigmoid(pred)
-        pred_binary = torch.argmax(pred, dim=1)
-
+        pred_prob = torch.softmax(pred, dim=-1)
+        pred = torch.argmax(pred, dim=1)
+  
         results['GT'].extend(target.tolist())
-        results['NN'].extend(pred_binary.tolist())
-        results['NN_pred'].extend(pred[:, 0].tolist())
+        results['NN_prob'].extend(pred_prob.tolist())
+        results['NN'].extend(pred.tolist())
 
     df = pd.DataFrame(results)
     df.to_csv(path_out/'results.csv')
 
     #  -------------------------- Confusion Matrix -------------------------
-    cm = confusion_matrix(df['GT'], df['NN'])
-    tn, fp, fn, tp = cm.ravel()
-    n = len(df)
-    logger.info("Confusion Matrix: TN {} ({:.2f}%), FP {} ({:.2f}%), FN {} ({:.2f}%), TP {} ({:.2f}%)".format(tn, tn/n*100, fp, fp/n*100, fn, fn/n*100, tp, tp/n*100 ))
+    cm = confusion_matrix(df['GT'], df['NN'], labels=list(range(len(labels))))
+    print(cm)
 
     
     # ------------------------------- ROC-AUC ---------------------------------
     fig, axis = plt.subplots(ncols=1, nrows=1, figsize=(6,6)) 
-    y_pred_lab = np.asarray(df['NN_pred'])
-    y_true_lab = np.asarray(df['GT'])
-    tprs, fprs, auc_val, thrs, opt_idx, cm = plot_roc_curve(y_true_lab, y_pred_lab, axis, fontdict=fontdict)
+    for label_idx, label in enumerate(labels):
+        y_pred_lab = np.asarray(df['NN_prob'].apply(lambda x:x[label_idx]))
+        y_true_lab = np.asarray(df['GT']==label_idx, dtype=int)
+        if not y_true_lab.any():
+            continue
+        tprs, fprs, auc_val, thrs, opt_idx, _ = plot_roc_curve(y_true_lab, y_pred_lab, axis, color=label_colors[label], name=f'{label} AUC:', fontdict=fontdict)
+        axis.set_title(f'{test_institution}', fontdict=fontdict)
     fig.tight_layout()
     fig.savefig(path_out/f'roc.png', dpi=300)
 
 
     #  -------------------------- Confusion Matrix -------------------------
-    acc = cm2acc(cm)
-    _,_, sens, spec = cm2x(cm)
-    df_cm = pd.DataFrame(data=cm, columns=['False', 'True'], index=['False', 'True'])
+    df_cm = pd.DataFrame(data=cm, columns=labels, index=labels)
     fig, axis = plt.subplots(1, 1, figsize=(4,4))
     sns.heatmap(df_cm, ax=axis, cbar=False, fmt='d', annot=True) 
-    axis.set_title(f'Confusion Matrix ACC={acc:.2f}', fontdict=fontdict) # CM =  [[TN, FP], [FN, TP]] 
+    axis.set_title(f'Confusion Matrix', fontdict=fontdict) # CM =  [[TN, FP], [FN, TP]] 
+    rotation='vertical'
+    axis.set_title(f'{test_institution}', fontdict=fontdict)
+    axis.set_xticklabels(axis.get_xticklabels(), rotation=45)
     axis.set_xlabel('Prediction' , fontdict=fontdict)
     axis.set_ylabel('True' , fontdict=fontdict)
     fig.tight_layout()
     fig.savefig(path_out/f'confusion_matrix.png', dpi=300)
 
-    logger.info(f"Malign  Objects: {np.sum(y_true_lab)}")
-    logger.info("Confusion Matrix {}".format(cm))
-    logger.info("Sensitivity {:.2f}".format(sens))
-    logger.info("Specificity {:.2f}".format(spec))
+
 
