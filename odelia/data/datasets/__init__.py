@@ -1,2 +1,1 @@
-from .dataset_3d import *
-from .dataset_3d_duke import *
+from .dataset_3d_odelia import ODELIA_Dataset3D
