@@ -5,6 +5,7 @@ import matplotlib
 def auc_bootstrapping(y_true, y_score, bootstrapping=1000, drop_intermediate=False):
     tprs, aucs, thrs = [], [], []
     mean_fpr = np.linspace(0, 1, 100)
+    np.random.seed(0)
     rand_idxs = np.random.randint(0, len(y_true), size=(bootstrapping, len(y_true))) # Note: with replacement 
     for rand_idx in rand_idxs:
         y_true_set = y_true[rand_idx]
