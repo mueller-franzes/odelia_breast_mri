@@ -9,7 +9,7 @@ from .augmentations.augmentations_3d import ImageOrSubjectToTensor, ZNormalizati
 
 class ODELIA_Dataset3D(data.Dataset):
     PATH_ROOT = Path('/home/gustav/Documents/datasets/ODELIA/')
-    ALL_INSTITUTIONS = ['CAM', 'RSH', 'RUMC', 'UKA', 'UMCU']
+    ALL_INSTITUTIONS = ['CAM', 'MHA', 'RSH', 'RUMC', 'UKA', 'UMCU', 'USZ', 'VHIO'] 
     LABEL = 'Class'
 
     def __init__(
@@ -90,6 +90,8 @@ class ODELIA_Dataset3D(data.Dataset):
         institution = item['Institution']
 
         # Use only binary label (Cancer yes/no)
+        # WARNING: Assuming 0=no Lesion, 1=benign Lesion, 2=malignant Lesion
+        # Note Duke already binary: 0=no or benign Lesion, 1=malignant Lesion
         if institution != "DUKE":
             target = int(target == 2)
     
