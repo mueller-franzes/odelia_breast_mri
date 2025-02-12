@@ -28,57 +28,57 @@ def create_split(df, uid_col='UID', label_col='Label', group_col='PatientID'):
 
 
 if __name__ == "__main__":
-    for dataset in [ 'CAM']: # 'CAM', 'MHA', 'RSH', 'RUMC', 'UKA', 'UMCU'
+    for dataset in [ 'UKA']: # 'CAM', 'MHA', 'RSH', 'RUMC', 'UKA', 'UMCU'
         print(f"----------------- {dataset} ---------------")
 
         path_root = Path('/home/gustav/Documents/datasets/ODELIA/')/dataset
         path_root_metadata = path_root/'metadata'
 
-        df = pd.read_excel(path_root_metadata/'annotation.xlsx', dtype={'ID':str})
-        df = df.rename(columns={'ID': 'PatientID'})
+        df = pd.read_excel(path_root_metadata/'ODELIA annotation scheme-2.0.xlsx', dtype={'Patient ID':str})
+        df = df[11:].reset_index(drop=True) # Remove rows with annotation hints
+        df = df.rename(columns={'Patient ID': 'PatientID', 'Type of Lesion':'Lesion'})
+        assert ~df[['PatientID', 'StudyInstanceUID', 'Lesion']].isna().any().any(), "Missing values detected"
+        
 
-        if dataset == 'CAM':
-            df['PatientID'] = df['PatientID'].str.upper()
-
-
-        # Define lesion severity order
-        severity_order = {
+        # Define class mapping
+        class_mapping = {
             'No lesion': 0,
             'Benign lesion': 1,
-            'Malignant lesion (DCIS)': 2,
-            'Malignant lesion (unknown)': 3,
-            'Malignant lesion (Invasive)': 4,
+            'DCIS': 2,
+            'Proliferative with atypia': 2,
+            'Invasive Cancer (no special type)': 2, # TODO should invasive cancer be separate class?
+            'Invasive Cancer (lobular carcinoma)': 2,
+            'Invasive Cancer (all other)':2,
+            'not provided': pd.NA
         }
+
+        df_left = df[df['Side'] == "left"] 
+        df_left = df_left[['PatientID', 'StudyInstanceUID', 'Side', 'Lesion']]
+        df_left.insert(0, 'UID', df_left['StudyInstanceUID'].astype(str)+'_'+df_left['Side'])
+
+        df_left['Class'] = df_left['Lesion'].map(class_mapping)
+        df_left = df_left.dropna(subset='Class').reset_index(drop=True) # TODO: Should the entire study be removed?
+        df_left = df_left.loc[df_left.groupby('StudyInstanceUID')['Class'].idxmax()]
+
+
+        df_right = df[df['Side'] == "right"] 
+        df_right = df_right[['PatientID', 'StudyInstanceUID', 'Side', 'Lesion']]
+        df_right.insert(0, 'UID', df_right['StudyInstanceUID'].astype(str)+'_'+df_right['Side'])
+
+        df_right['Class'] = df_right['Lesion'].map(class_mapping)
+        df_right = df_right.dropna(subset='Class').reset_index(drop=True) # TODO: Should the entire study be removed?
+        df_right = df_right.loc[df_right.groupby('StudyInstanceUID')['Class'].idxmax()]
+   
         
-
-        df_left = df[['PatientID',	'Left side']]
-        df_left = df_left.rename(columns={'Left side': 'Lesion'})
-        df_left.insert(1, 'Side', 'left')
-        df_left.insert(0, 'UID', df_left['PatientID'].astype(str)+'_'+df_left['Side'])
-
-        df_left = df_left.dropna(subset='Lesion').reset_index(drop=True)
-        df_left['Severity'] = df_left['Lesion'].map(severity_order)
-        df_left = df_left.loc[df_left.groupby('PatientID')['Severity'].idxmax()]
-        df_left = df_left.drop(columns=['Severity'])
-
-        df_right = df[['PatientID', 'Right side']]
-        df_right = df_right.rename(columns={'Right side': 'Lesion'})
-        df_right.insert(1, 'Side', 'right')
-        df_right.insert(0, 'UID', df_right['PatientID'].astype(str)+'_'+df_right['Side'])
-
-        df_right = df_right.dropna(subset='Lesion').reset_index(drop=True)
-        df_right['Severity'] = df_right['Lesion'].map(severity_order)
-        df_right = df_right.loc[df_right.groupby('PatientID')['Severity'].idxmax()]
-        df_right = df_right.drop(columns=['Severity'])
-        
-        
+        # ------------------- Merge left and right ----------------------
         df = pd.concat([df_left, df_right]).reset_index(drop=True)
-        print("Patients", df['PatientID'].nunique())
-        assert len(df) == 2*df['PatientID'].nunique(), "Number of Lesions must be 2* Number of Patients"
-        
+        df['Class'] = df['Class'].astype(int)
 
-        df['Class'] = df['Lesion'].map({'No lesion':0, 'Benign lesion':1, 'Malignant lesion (DCIS)': 2, 'Malignant lesion (Invasive)':2, 'Malignant lesion (unknown)':2})
-        print(df['Class'].value_counts(dropna=False))
+        print("Patients", df['PatientID'].nunique())
+        print("Studies", df['StudyInstanceUID'].nunique())
+        print("Breasts", df['UID'].nunique())
+        for class_name, count in df['Class'].value_counts().sort_index().items():
+            print(f"Lesion Type {class_name}: {count}")
 
         df_splits = create_split(df, uid_col='UID', label_col='Class', group_col='PatientID')
         df_splits.to_csv(path_root_metadata/'split.csv', index=False)
