@@ -39,6 +39,9 @@ if __name__ == "__main__":
 
         if dataset == 'CAM':
             df['PatientID'] = df['PatientID'].str.upper()
+        if dataset == 'UMCU':
+            df['PatientID'] = df['PatientID'].astype(str).str.zfill(10)
+
 
 
         # Define lesion severity order
