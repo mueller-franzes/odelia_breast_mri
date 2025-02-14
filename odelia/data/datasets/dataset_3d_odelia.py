@@ -103,7 +103,8 @@ class ODELIA_Dataset3D(data.Dataset):
 
     @classmethod
     def load_split(cls, filepath_or_buffer=None, fold=0, split=None, fraction=None):
-        df = pd.read_csv(filepath_or_buffer)
+        # WARNING: PatientID must be read as string otherwise leading zeros are cut off
+        df = pd.read_csv(filepath_or_buffer, dtype={'PatientID':str, 'UID':str})
         df = df[df['Fold'] == fold]
         if split is not None:
             df = df[df['Split'] == split]   
