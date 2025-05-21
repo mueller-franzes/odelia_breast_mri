@@ -31,13 +31,13 @@ if __name__ == "__main__":
     for dataset in [ 'UKA']: # 'CAM', 'MHA', 'RSH', 'RUMC', 'UKA', 'UMCU'
         print(f"----------------- {dataset} ---------------")
 
-        path_root = Path('/home/gustav/Documents/datasets/ODELIA/')/dataset
+        path_root = Path('/home/homesOnMaster/gfranzes/Documents/datasets/ODELIA/')/dataset
         path_root_metadata = path_root/'metadata'
 
         df = pd.read_excel(path_root_metadata/'ODELIA annotation scheme-2.0.xlsx', dtype={'Patient ID':str})
         df = df[11:].reset_index(drop=True) # Remove rows with annotation hints
         df = df.rename(columns={'Patient ID': 'PatientID', 'Type of Lesion':'Lesion'})
-        assert ~df[['PatientID', 'StudyInstanceUID', 'Lesion']].isna().any().any(), "Missing values detected"
+        assert not df[['PatientID', 'StudyInstanceUID', 'Lesion']].isna().any().any(), "Missing values detected"
         
 
         # Define class mapping
