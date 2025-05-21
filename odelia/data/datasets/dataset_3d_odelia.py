@@ -19,16 +19,38 @@ class ODELIA_Dataset3D(data.Dataset):
         "original": "metadata",
         "unilateral": "metadata_unilateral"
     }
+    # CLASS_LABELS = {
+    #     'original': {
+    #         'Lesion_Left': ['No', 'Benign', 'Malignant'],
+    #         'Lesion_Right': ['No', 'Benign', 'Malignant'],
+    #     },
+    #     'unilateral': {
+    #         'Lesion': ['No', 'Benign', 'Malignant'],
+    #     }
+    # }
+
+    _CLS = [
+        # 'Fibroadenoma',
+        # 'Adenosis',
+        # 'LymphNode',
+        # 'Cyst',
+        # 'FatNecrosis',
+        # # 'Hyperplasia', # To few  
+        # 'DuctEctasia',
+        # 'Papilloma',
+        # # 'Hamartoma', # Too few 
+        # 'Scar',
+        # 'DCIS',
+        'Carcinoma',
+    ]
     CLASS_LABELS = {
         'original': {
-            'Lesion_Left': ['No', 'Benign', 'Malignant'],
-            'Lesion_Right': ['No', 'Benign', 'Malignant'],
+            f'{cls_str}_{side}': ['Absence', 'Presence'] for cls_str in _CLS for side in ['left', 'right']
         },
         'unilateral': {
-            'Lesion': ['No', 'Benign', 'Malignant'],
-        }
+            f'{cls_str}': ['Absence', 'Presence'] for cls_str in _CLS
+        },
     }
-
 
     def __init__(
             self,
@@ -89,12 +111,12 @@ class ODELIA_Dataset3D(data.Dataset):
             self.transform = transform
  
 
-
         # Get split  
         dfs = []
         for institution in self.institutions:
             path_metadata = self.path_root/institution/self.meta_dir 
             df = self.load_split(path_metadata/'split.csv', fold=fold, split=split, fraction=fraction)
+            # df = self.load_split('scripts/playground/debora_split.csv', fold=fold, split=split, fraction=fraction)
             df['Institution'] = institution
 
             # Verify files exist
@@ -140,8 +162,16 @@ class ODELIA_Dataset3D(data.Dataset):
             target = (target == 2).astype(int)
     
         path_folder = self.path_root/institution/self.data_dir/uid
-        img = self.load_img([path_folder/f'{name}.nii.gz' for name in [ 'Pre', 'Sub_1', 'T2']]) 
+        # img = self.load_img(path_folder/'Pre.nii.gz') 
+        # img = self.load_img(path_folder/'T2.nii.gz') 
+        # img = self.load_img(path_folder/'Sub_1.nii.gz') 
+        # img = self.load_img([path_folder/f'{name}.nii.gz' for name in [ 'Pre', 'T2']]) 
+        img = self.load_img([path_folder/f'{name}.nii.gz' for name in [ 'Pre', 'Sub_1']]) 
+        # img = self.load_img([path_folder/f'{name}.nii.gz' for name in [ 'Pre', 'Post_1']]) 
+        # img = self.load_img([path_folder/f'{name}.nii.gz' for name in [ 'Pre', 'Sub_1', 'T2']]) 
+        # img = self.load_img([path_folder/f'{name}.nii.gz' for name in [ 'Pre', 'Sub_1', 'Sub_2', 'Sub_3', 'Sub_4', 'T2']]) 
         img = self.transform(img)
+
 
         return {'uid':uid, 'source': img, 'target':target}
 
