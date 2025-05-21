@@ -1,4 +1,4 @@
-from odelia.models import BasicClassifier
+from odelia.models import BasicClassifier, BasicRegression
 import monai.networks.nets as nets
 import torch 
 import torch.nn as nn 
@@ -12,6 +12,23 @@ def _get_resnet_monai(model):
         18: nets.resnet18, 34: nets.resnet34, 50: nets.resnet50, 101: nets.resnet101, 152: nets.resnet152
     }.get(model)
 
+class _ResNet(nn.Module):
+    def __init__(
+        self, 
+        in_ch, 
+        out_ch=1, 
+        spatial_dims=3,
+        model = 34,
+    ):
+        super().__init__()
+        Model = _get_resnet_monai(model)
+        self.model = Model(n_input_channels=in_ch, spatial_dims=spatial_dims, num_classes=out_ch)
+
+    def forward(self, x):
+        return self.model(x)
+
+
+
 class ResNet(BasicClassifier):
     def __init__(
         self, 
@@ -19,20 +36,27 @@ class ResNet(BasicClassifier):
         out_ch=1, 
         spatial_dims=3,
         model = 34,
-        resnet_kwargs = {},
-        loss=torch.nn.BCEWithLogitsLoss, 
-        loss_kwargs={}, 
-        optimizer=torch.optim.AdamW, 
-        optimizer_kwargs={'lr':1e-4}, 
-        lr_scheduler=None, 
-        lr_scheduler_kwargs={},
-        aucroc_kwargs={"task":"binary"},
-        acc_kwargs={"task":"binary"}
+        **kwargs
     ):
-        super().__init__(in_ch, out_ch, spatial_dims, loss, loss_kwargs, optimizer, optimizer_kwargs, lr_scheduler, lr_scheduler_kwargs, aucroc_kwargs, acc_kwargs)
-        Model = _get_resnet_monai(model)
-        self.model = Model(n_input_channels=in_ch, spatial_dims=spatial_dims, num_classes=out_ch, **resnet_kwargs)
+        super().__init__(in_ch, out_ch, spatial_dims, **kwargs)
+        self.model = _ResNet(in_ch, out_ch, spatial_dims, model)
 
-    def forward(self, x_in, **kwargs):
-        pred_hor = self.model(x_in)
-        return pred_hor
+    def forward(self, x):
+        return self.model(x)
+
+
+
+class ResNetRegression(BasicRegression):
+    def __init__(
+        self, 
+        in_ch,
+        out_ch=1, 
+        spatial_dims=3,
+        model = 34,
+        **kwargs
+    ):
+        super().__init__(in_ch, out_ch, spatial_dims, **kwargs)
+        self.model = _ResNet(in_ch, out_ch, spatial_dims, model)
+
+    def forward(self, x):
+        return self.model(x)

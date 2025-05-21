@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from torchmetrics import AUROC, Accuracy
-
+from torchmetrics import AUROC, Accuracy, MeanAbsoluteError
+from .utils.losses import CornLossMulti, MulitCELoss
 
 class VeryBasicModel(pl.LightningModule):
     def __init__(self, save_hyperparameters=True):
@@ -119,39 +119,64 @@ class BasicClassifier(BasicModel):
         in_ch,
         out_ch,
         spatial_dims,
+        task="binary", # binary or multiclass or multilabel (=multibinary) 
         loss = torch.nn.BCEWithLogitsLoss,
         loss_kwargs = {},
         optimizer=torch.optim.AdamW, 
-        optimizer_kwargs={'lr':1e-3, 'weight_decay':1e-2},
+        optimizer_kwargs={'lr':1e-4, 'weight_decay':1e-2},
         lr_scheduler= None, 
         lr_scheduler_kwargs={},
         aucroc_kwargs={"task":"binary"},
-        acc_kwargs={"task":"binary"}
+        acc_kwargs={"task":"binary"},
+        save_hyperparameters=True
     ):
         super().__init__(optimizer, optimizer_kwargs, lr_scheduler, lr_scheduler_kwargs)
         self.in_ch = in_ch 
         self.out_ch = out_ch 
         self.spatial_dims = spatial_dims
+        self.task = task 
+
+        if loss is not None:
+            loss = loss 
+        if task == "binary":
+            loss = torch.nn.BCEWithLogitsLoss
+        elif task == "multiclass":
+            loss = torch.nn.CrossEntropyLoss
+        elif task in ["multilabel", 'multibinary']:
+            loss = torch.nn.BCEWithLogitsLoss
+        else:
+            raise ValueError("Unknown task and loss not provided")
+    
         self.loss = loss(**loss_kwargs)
         self.loss_kwargs = loss_kwargs 
+
+        if task == "binary":
+            aucroc_kwargs.update({"task":"binary"}) # preds (N, ...) , target (N, ...)
+            acc_kwargs.update({"task":"binary"}) 
+        elif task == "multiclass":
+            aucroc_kwargs.update({"task":"multiclass", 'num_classes':out_ch}) # preds (N, C, ...) , target (N, ...)
+            acc_kwargs.update({"task":"multiclass", 'num_classes':out_ch}) 
+        elif task in ["multilabel", 'multibinary']:
+            aucroc_kwargs.update({"task":"multilabel", 'num_labels':out_ch}) # preds (N, C, ...) , target (N, C, ...)
+            acc_kwargs.update({"task":"multilabel", 'num_labels':out_ch}) 
+ 
 
         self.auc_roc = nn.ModuleDict({state:AUROC(**aucroc_kwargs) for state in ["train_", "val_", "test_"]}) # 'train' not allowed as key
         self.acc = nn.ModuleDict({state:Accuracy(**acc_kwargs) for state in ["train_", "val_", "test_"]})
 
     
     def _step(self, batch: dict, batch_idx: int, state: str, step: int):
-        source, target = batch['source'], batch['target']
-        if isinstance(self.loss, torch.nn.BCEWithLogitsLoss):
-            target = target[:,None].float()
+        source = batch['source']
+        target = batch['target'] 
         batch_size = source.shape[0]
         self.batch_size = batch_size 
 
         # Run Model 
-        pred = self(source)
+        pred = self(source) # Binary [B, 1], [B, C]
 
         # ------------------------- Compute Loss ---------------------------
         logging_dict = {}
-        logging_dict['loss'] = self.loss(pred, target)
+        logging_dict['loss'] = self.compute_loss(pred, target)
 
         # --------------------- Compute Metrics  -------------------------------
         with torch.no_grad():
@@ -171,4 +196,84 @@ class BasicClassifier(BasicModel):
             self.log(f"{state}/{name}", value.compute(), batch_size=self.batch_size, on_step=False, on_epoch=True, 
                      sync_dist=True)
             value.reset()
+    
+    def compute_loss(self, pred, target):
+        if self.task != "multiclass":
+            target = target.float()
+        return self.loss(pred, target)
 
+    def logits2labels(self, logits):
+        if self.task == "multiclass":
+            return torch.argmax(logits, dim=1, keepdim=True)
+        return (self.logits2probabilities(logits)>0.5).int()
+    
+    def logits2probabilities(self, logits):
+        if self.task == "multiclass":
+            return F.softmax(logits, dim=1)
+        return torch.sigmoid(logits)
+
+class BasicRegression(BasicModel):
+    def __init__(
+        self, 
+        in_ch,
+        out_ch,
+        spatial_dims,
+        loss = CornLossMulti, # MulitCELoss, CornLossMulti,
+        loss_kwargs = {},
+        optimizer=torch.optim.AdamW, 
+        optimizer_kwargs={'lr':1e-4, 'weight_decay':1e-2},
+        lr_scheduler= None, 
+        lr_scheduler_kwargs={},
+        save_hyperparameters=True
+    ):
+        super().__init__(optimizer, optimizer_kwargs, lr_scheduler, lr_scheduler_kwargs)
+        self.in_ch = in_ch 
+        self.out_ch = out_ch 
+        self.spatial_dims = spatial_dims
+
+        self.loss_func = loss(**loss_kwargs)
+        self.loss_kwargs = loss_kwargs 
+
+
+        self.mae = nn.ModuleDict({state:MeanAbsoluteError() for state in ["train_", "val_", "test_"]}) # 'train' not allowed as key
+
+    
+    def _step(self, batch: dict, batch_idx: int, state: str, step: int):
+        source = batch['source']
+        target = batch['target'] # ordinal: [B, num_classes]
+
+        batch_size = source.shape[0]
+        self.batch_size = batch_size 
+
+        # Run Model 
+        pred = self(source) # MAE expects [B, num_classes], CORN expects [B, num_classes*(num_labels-1)]
+
+        # ------------------------- Compute Loss ---------------------------
+        logging_dict = {}
+        logging_dict['loss'] = self.loss_func(pred, target)
+
+        # --------------------- Compute Metrics  -------------------------------
+        pred = self.loss_func.logits2labels(pred)
+
+        with torch.no_grad():
+            # Aggregate here to compute for entire set later 
+            self.mae[state+"_"].update(pred, target)
+            
+            # ----------------- Log Scalars ----------------------
+            for metric_name, metric_val in logging_dict.items():
+                self.log(f"{state}/{metric_name}", metric_val, batch_size=batch_size, on_step=True, on_epoch=True, 
+                         sync_dist=False) 
+
+        return logging_dict['loss'] 
+
+    def _epoch_end(self, state):
+        for name, value in [("MAE", self.mae[state+"_"]), ]:
+            self.log(f"{state}/{name}", value.compute(), batch_size=self.batch_size, on_step=False, on_epoch=True, 
+                     sync_dist=True)
+            value.reset()
+
+    def logits2labels(self, logits):
+        return self.loss_func.logits2labels(logits)
+    
+    def logits2probabilities(self, logits):
+        return self.loss_func.logits2probabilities(logits)
