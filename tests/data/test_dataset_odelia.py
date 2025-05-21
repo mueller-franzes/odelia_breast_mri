@@ -7,23 +7,28 @@ def tensor2image(tensor, batch=0):
     return (tensor if tensor.ndim<5 else torch.swapaxes(tensor[batch], 0, 1).reshape(-1, *tensor.shape[-2:])[:,None])
 
 all_institutions = ODELIA_Dataset3D.ALL_INSTITUTIONS
-for institution in ['UMCU']:
+for institution in all_institutions:
     ds = ODELIA_Dataset3D(
         institutions=institution,
-        # random_flip=True,
-        # random_rotate=True, 
+        random_flip=True,
+        random_rotate=True, 
         # random_inverse=True,
         # noise=True
+        binary=False,
+        config='unilateral',
     )
 
-    print(f"Dataset {institution} Length", len(ds))
+    print(f" ------------- Dataset {institution} ------------" )
     df = ds.df 
-    num_patients = df['PatientID'].nunique()
-    # num_cancer = df.groupby('PatientID')[ds.LABEL].apply(lambda x: (x == 2).any()).sum()
-    num_cancer = df.groupby('PatientID')[ds.LABEL].apply(lambda x: (x == 1).any()).sum()
-    print("Cancer ", num_cancer, " No Cancer:", num_patients-num_cancer )
-    print("Cancer ", df[ds.LABEL].sum() )
+    print("Number of exams: ", len(df)) 
+    print("Number of patients: ", df['PatientID'].nunique())
+    
+    for label in ds.labels:
+        print(f"Label {label}")
+        print(df[label].value_counts())
 
+
+    # ----------------- Print some examples ----------------
     item = ds[20]
     uid = item["uid"]
     img = item['source']
